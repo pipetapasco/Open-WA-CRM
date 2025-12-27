@@ -3,3 +3,11 @@ djangorestframework
 django-cors-headers 
 psycopg2-binary 
 python-dotenv
+gunicorn
+celery[redis]
+redis
+django-celery-beat
+django-celery-results
+requests
+httpx
+python-decouple
