@@ -45,7 +45,10 @@ INSTALLED_APPS = [
     'corsheaders',
     'django_celery_beat',
     'django_celery_results',
-    'core',   
+    'apps.common',
+    'apps.config_api',
+    'apps.contacts',
+    'apps.chat',
 ]
 
 MIDDLEWARE = [
