@@ -1,5 +1,6 @@
 from django.db import models
 from apps.common.models import TimeStampedModel
+from apps.common.fields import EncryptedTextField
 
 
 class WhatsAppAccount(TimeStampedModel):
@@ -25,12 +26,12 @@ class WhatsAppAccount(TimeStampedModel):
         max_length=50,
         help_text='Business Account ID de Meta'
     )
-    access_token = models.TextField(
-        help_text='Permanent Access Token de Meta'
+    access_token = EncryptedTextField(
+        help_text='Permanent Access Token de Meta (Encriptado)'
     )
-    webhook_verify_token = models.CharField(
+    webhook_verify_token = EncryptedTextField(
         max_length=100,
-        help_text='Token para verificar webhooks de Meta'
+        help_text='Token para verificar webhooks de Meta (Encriptado)'
     )
     status = models.CharField(
         max_length=20,

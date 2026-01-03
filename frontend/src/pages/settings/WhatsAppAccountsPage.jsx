@@ -1,11 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Plus, Settings, ExternalLink, Loader2, Trash2 } from 'lucide-react';
+import { Plus, Settings, ExternalLink, Loader2, Trash2, Copy, Check, Link2 } from 'lucide-react';
 import { getAccounts, deleteAccount } from '../../services/whatsappService';
 import ConnectAccountModal from '../../components/modals/ConnectAccountModal';
+import EditAccountModal from '../../components/modals/EditAccountModal';
 
-function AccountCard({ account, onDelete }) {
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
+function AccountCard({ account, onDelete, onEdit }) {
     const [deleting, setDeleting] = useState(false);
+    const [copied, setCopied] = useState(false);
     const isActive = account.status === 'active';
+
+    const webhookUrl = `${API_BASE_URL}/config/webhook/${account.phone_number_id}/`;
 
     const handleDelete = async () => {
         if (!confirm(`¿Estás seguro de eliminar la cuenta "${account.name}"?`)) return;
@@ -22,6 +28,16 @@ function AccountCard({ account, onDelete }) {
         }
     };
 
+    const handleCopyWebhook = async () => {
+        try {
+            await navigator.clipboard.writeText(webhookUrl);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            console.error('Error copying to clipboard:', err);
+        }
+    };
+
     return (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
             {/* Card Header */}
@@ -30,8 +46,8 @@ function AccountCard({ account, onDelete }) {
                     <h3 className="font-semibold text-gray-900">{account.name}</h3>
                     <span
                         className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full ${isActive
-                                ? 'bg-green-50 text-green-700'
-                                : 'bg-red-50 text-red-700'
+                            ? 'bg-green-50 text-green-700'
+                            : 'bg-red-50 text-red-700'
                             }`}
                     >
                         <span
@@ -53,6 +69,30 @@ function AccountCard({ account, onDelete }) {
                     <p className="text-xs text-gray-500 uppercase tracking-wide">Business Account</p>
                     <p className="text-sm text-gray-700 font-mono">{account.business_account_id}</p>
                 </div>
+
+                {/* Webhook URL */}
+                <div className="pt-2 border-t border-gray-100">
+                    <div className="flex items-center gap-1 mb-1.5">
+                        <Link2 size={12} className="text-gray-400" />
+                        <p className="text-xs text-gray-500 uppercase tracking-wide">Webhook URL</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <code className="flex-1 text-xs bg-gray-100 text-gray-700 px-2 py-1.5 rounded font-mono truncate">
+                            {webhookUrl}
+                        </code>
+                        <button
+                            onClick={handleCopyWebhook}
+                            className={`p-1.5 rounded-lg transition-colors ${copied
+                                ? 'bg-green-100 text-green-600'
+                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                }`}
+                            title="Copiar URL"
+                        >
+                            {copied ? <Check size={14} /> : <Copy size={14} />}
+                        </button>
+                    </div>
+                </div>
+
                 {/* Indicadores de tokens */}
                 <div className="flex gap-2">
                     <span className={`text-xs px-2 py-0.5 rounded ${account.has_access_token ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -63,7 +103,10 @@ function AccountCard({ account, onDelete }) {
 
             {/* Card Footer */}
             <div className="px-4 py-3 bg-gray-50 rounded-b-xl border-t border-gray-100 flex gap-2">
-                <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                <button
+                    onClick={() => onEdit?.(account)}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                >
                     <Settings size={16} />
                     Gestionar
                 </button>
@@ -102,7 +145,9 @@ export default function WhatsAppAccountsPage() {
     const [accounts, setAccounts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [selectedAccount, setSelectedAccount] = useState(null);
 
     const fetchAccounts = async () => {
         try {
@@ -126,8 +171,17 @@ export default function WhatsAppAccountsPage() {
         fetchAccounts();
     };
 
+    const handleAccountUpdated = () => {
+        fetchAccounts();
+    };
+
     const handleAccountDeleted = (deletedId) => {
         setAccounts((prev) => prev.filter((acc) => acc.id !== deletedId));
+    };
+
+    const handleEditAccount = (account) => {
+        setSelectedAccount(account);
+        setIsEditModalOpen(true);
     };
 
     return (
@@ -141,7 +195,7 @@ export default function WhatsAppAccountsPage() {
                     </p>
                 </div>
                 <button
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={() => setIsCreateModalOpen(true)}
                     className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg shadow-sm hover:bg-blue-700 hover:shadow-md transition-all duration-200"
                 >
                     <Plus size={18} />
@@ -167,6 +221,7 @@ export default function WhatsAppAccountsPage() {
                             key={account.id}
                             account={account}
                             onDelete={handleAccountDeleted}
+                            onEdit={handleEditAccount}
                         />
                     ))}
                 </div>
@@ -185,7 +240,7 @@ export default function WhatsAppAccountsPage() {
                         Conecta tu primera cuenta de WhatsApp Business para comenzar.
                     </p>
                     <button
-                        onClick={() => setIsModalOpen(true)}
+                        onClick={() => setIsCreateModalOpen(true)}
                         className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
                     >
                         <Plus size={16} />
@@ -194,11 +249,22 @@ export default function WhatsAppAccountsPage() {
                 </div>
             )}
 
-            {/* Connect Account Modal */}
+            {/* Create Account Modal */}
             <ConnectAccountModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
+                isOpen={isCreateModalOpen}
+                onClose={() => setIsCreateModalOpen(false)}
                 onSuccess={handleAccountCreated}
+            />
+
+            {/* Edit Account Modal */}
+            <EditAccountModal
+                isOpen={isEditModalOpen}
+                onClose={() => {
+                    setIsEditModalOpen(false);
+                    setSelectedAccount(null);
+                }}
+                account={selectedAccount}
+                onSuccess={handleAccountUpdated}
             />
         </div>
     );

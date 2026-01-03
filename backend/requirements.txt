@@ -11,3 +11,4 @@ django-celery-results
 requests
 httpx
 python-decouple
+cryptography
