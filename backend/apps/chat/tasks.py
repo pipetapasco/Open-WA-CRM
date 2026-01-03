@@ -1,7 +1,157 @@
 from celery import shared_task
 import logging
+import httpx
 
 logger = logging.getLogger(__name__)
+
+
+@shared_task(bind=True, queue='messages', max_retries=3)
+def send_whatsapp_message(self, message_id: str):
+    """
+    Envía un mensaje a WhatsApp vía la API de Meta.
+    
+    Args:
+        message_id: UUID del mensaje en nuestra BD
+    """
+    from apps.chat.models import Message
+    
+    try:
+        message = Message.objects.select_related(
+            'conversation__contact', 
+            'conversation__account'
+        ).get(pk=message_id)
+        
+        account = message.conversation.account
+        contact = message.conversation.contact
+        
+        # Construir el payload para la API de Meta
+        api_url = f"https://graph.facebook.com/v18.0/{account.phone_number_id}/messages"
+        
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": contact.phone_number,
+            "type": message.message_type,
+        }
+        
+        if message.message_type == 'text':
+            payload["text"] = {"body": message.body}
+        
+        headers = {
+            "Authorization": f"Bearer {account.access_token}",
+            "Content-Type": "application/json"
+        }
+        
+        logger.info(f"Sending message to WhatsApp: {contact.phone_number}")
+        
+        # Enviar a la API de Meta
+        with httpx.Client(timeout=30.0) as client:
+            response = client.post(api_url, json=payload, headers=headers)
+        
+        if response.status_code == 200:
+            data = response.json()
+            whatsapp_id = data.get('messages', [{}])[0].get('id')
+            
+            # Actualizar el mensaje con el ID real de WhatsApp
+            if whatsapp_id:
+                message.whatsapp_id = whatsapp_id
+            message.delivery_status = 'sent'
+            message.save(update_fields=['whatsapp_id', 'delivery_status', 'updated_at'])
+            
+            logger.info(f"Message sent successfully: {whatsapp_id}")
+            return {'status': 'sent', 'whatsapp_id': whatsapp_id}
+        else:
+            logger.error(f"WhatsApp API error: {response.status_code} - {response.text}")
+            message.delivery_status = 'failed'
+            message.save(update_fields=['delivery_status', 'updated_at'])
+            raise Exception(f"WhatsApp API error: {response.status_code}")
+            
+    except Message.DoesNotExist:
+        logger.error(f"Message not found: {message_id}")
+        return {'status': 'error', 'message': 'Message not found'}
+        
+    except Exception as exc:
+        logger.error(f"Error sending message: {exc}")
+        raise self.retry(exc=exc, countdown=30)
+
+
+@shared_task(bind=True, queue='messages', max_retries=3)
+def send_whatsapp_template(self, message_id: str, template_name: str, template_language: str, components: list = None):
+    """
+    Envía un mensaje de plantilla a WhatsApp vía la API de Meta.
+    
+    Args:
+        message_id: UUID del mensaje en nuestra BD
+        template_name: Nombre de la plantilla
+        template_language: Código de idioma (ej: es, en_US)
+        components: Lista de componentes con variables
+    """
+    from apps.chat.models import Message
+    
+    try:
+        message = Message.objects.select_related(
+            'conversation__contact', 
+            'conversation__account'
+        ).get(pk=message_id)
+        
+        account = message.conversation.account
+        contact = message.conversation.contact
+        
+        # Construir el payload para plantilla
+        api_url = f"https://graph.facebook.com/v18.0/{account.phone_number_id}/messages"
+        
+        template_payload = {
+            "name": template_name,
+            "language": {"code": template_language},
+        }
+        
+        # Añadir componentes si existen (variables)
+        if components:
+            template_payload["components"] = components
+        
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": contact.phone_number,
+            "type": "template",
+            "template": template_payload
+        }
+        
+        headers = {
+            "Authorization": f"Bearer {account.access_token}",
+            "Content-Type": "application/json"
+        }
+        
+        logger.info(f"Sending template '{template_name}' to: {contact.phone_number}")
+        
+        with httpx.Client(timeout=30.0) as client:
+            response = client.post(api_url, json=payload, headers=headers)
+        
+        if response.status_code == 200:
+            data = response.json()
+            whatsapp_id = data.get('messages', [{}])[0].get('id')
+            
+            if whatsapp_id:
+                message.whatsapp_id = whatsapp_id
+            message.delivery_status = 'sent'
+            message.save(update_fields=['whatsapp_id', 'delivery_status', 'updated_at'])
+            
+            logger.info(f"Template sent successfully: {whatsapp_id}")
+            return {'status': 'sent', 'whatsapp_id': whatsapp_id}
+        else:
+            logger.error(f"WhatsApp API error: {response.status_code} - {response.text}")
+            message.delivery_status = 'failed'
+            message.save(update_fields=['delivery_status', 'updated_at'])
+            raise Exception(f"WhatsApp API error: {response.status_code}")
+            
+    except Message.DoesNotExist:
+        logger.error(f"Message not found: {message_id}")
+        return {'status': 'error', 'message': 'Message not found'}
+        
+    except Exception as exc:
+        logger.error(f"Error sending template: {exc}")
+        raise self.retry(exc=exc, countdown=30)
+
 
 
 @shared_task(bind=True, queue='whatsapp')
@@ -77,20 +227,31 @@ def process_incoming_message(message: dict, phone_number_id: str):
         
         msg_type = message.get('type', 'text')
         msg_body = ''
+        media_url = None
         
         if msg_type == 'text':
             msg_body = message.get('text', {}).get('body', '')
-        elif msg_type in ['image', 'video', 'audio', 'document']:
-            msg_body = f"[{msg_type.upper()}]"
+        elif msg_type in ['image', 'video', 'audio', 'document', 'sticker']:
+            media_info = message.get(msg_type, {})
+            msg_body = media_info.get('caption', '')
+            media_id = media_info.get('id')
+            
+            if media_id:
+                try:
+                    media_url = download_whatsapp_media(media_id, account.access_token)
+                except Exception as e:
+                    logger.error(f"Failed to download media {media_id}: {e}")
+                    media_url = None
         
         Message.objects.create(
             conversation=conversation,
             whatsapp_id=message.get('id'),
-            direction='inbound',
+            direction='incoming',
             message_type=msg_type,
             body=msg_body,
+            media_url=media_url,
             metadata=message,
-            status='received'
+            delivery_status='delivered'
         )
         
         from django.utils import timezone
@@ -104,25 +265,99 @@ def process_incoming_message(message: dict, phone_number_id: str):
         raise
 
 
+def download_whatsapp_media(media_id: str, access_token: str) -> str:
+    """
+    Descarga un archivo multimedia de la API de WhatsApp.
+    Retorna la URL relativa local.
+    """
+    import os
+    from django.conf import settings
+    import uuid
+    import mimetypes
+    
+    # 1. Obtener URL de descarga
+    url = f"https://graph.facebook.com/v18.0/{media_id}"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    
+    with httpx.Client(timeout=30.0) as client:
+        response = client.get(url, headers=headers)
+        response.raise_for_status()
+        media_data = response.json()
+        download_url = media_data.get('url')
+        mime_type = media_data.get('mime_type')
+        
+        if not download_url:
+            raise Exception("No download URL found in media metadata")
+            
+        # 2. Descargar el archivo binario
+        # Nota: La URL de descarga también requiere auth headers
+        file_response = client.get(download_url, headers=headers)
+        file_response.raise_for_status()
+        
+        # 3. Guardar archivo localmente
+        ext = mimetypes.guess_extension(mime_type) or '.bin'
+        filename = f"{uuid.uuid4().hex}{ext}"
+        
+        save_dir = os.path.join(settings.MEDIA_ROOT, 'whatsapp')
+        os.makedirs(save_dir, exist_ok=True)
+        
+        file_path = os.path.join(save_dir, filename)
+        
+        with open(file_path, 'wb') as f:
+            f.write(file_response.content)
+            
+        logger.info(f"Media downloaded: {file_path}")
+        
+        # Retornar URL relativa
+        return f"{settings.MEDIA_URL}whatsapp/{filename}"
+
+
 @shared_task(queue='messages')
 def process_status_update(status_update: dict):
     """
-    Procesa actualizaciones de estado de mensajes (delivered, read, failed).
+    Procesa actualizaciones de estado de mensajes (sent, delivered, read, failed).
+    Meta envía estos webhooks cuando el estado del mensaje cambia.
     
     Args:
-        status_update: Datos del status update
+        status_update: Datos del status update de Meta
     """
     from apps.chat.models import Message
+    from channels.layers import get_channel_layer
+    from asgiref.sync import async_to_sync
     
     try:
         whatsapp_id = status_update.get('id')
         new_status = status_update.get('status')
         
-        message = Message.objects.filter(whatsapp_id=whatsapp_id).first()
+        logger.info(f"Processing status update: {whatsapp_id} -> {new_status}")
+        
+        message = Message.objects.select_related(
+            'conversation'
+        ).filter(whatsapp_id=whatsapp_id).first()
+        
         if message:
-            message.status = new_status
-            message.save(update_fields=['status', 'updated_at'])
+            message.delivery_status = new_status
+            message.save(update_fields=['delivery_status', 'updated_at'])
             logger.info(f"Message {whatsapp_id} status updated to: {new_status}")
+            
+            # Enviar actualización al frontend vía WebSocket
+            try:
+                channel_layer = get_channel_layer()
+                if channel_layer:
+                    async_to_sync(channel_layer.group_send)(
+                        'inbox_updates',
+                        {
+                            'type': 'send_status_update',
+                            'status_update': {
+                                'message_id': str(message.id),
+                                'conversation_id': str(message.conversation.id),
+                                'whatsapp_id': whatsapp_id,
+                                'delivery_status': new_status,
+                            }
+                        }
+                    )
+            except Exception as ws_error:
+                logger.error(f"Error sending status via WebSocket: {ws_error}")
         else:
             logger.warning(f"Message not found for status update: {whatsapp_id}")
             

@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { MessageSquare, Users, Settings, Menu, X } from 'lucide-react';
 import { useState } from 'react';
+import { useUnreadCount } from '../contexts/UnreadContext';
 
 const navItems = [
     { to: '/inbox', icon: MessageSquare, label: 'Inbox' },
@@ -10,6 +11,7 @@ const navItems = [
 
 export default function DashboardLayout() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const { totalUnread } = useUnreadCount();
 
     return (
         <div className="flex h-screen bg-gray-50">
@@ -47,8 +49,22 @@ export default function DashboardLayout() {
                                         }`
                                     }
                                 >
-                                    <item.icon size={20} />
-                                    {sidebarOpen && <span>{item.label}</span>}
+                                    <div className="relative">
+                                        <item.icon size={20} />
+                                        {item.to === '/inbox' && totalUnread > 0 && (
+                                            <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] flex items-center justify-center px-1 text-[10px] font-bold text-white bg-red-500 rounded-full">
+                                                {totalUnread > 99 ? '99+' : totalUnread}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {sidebarOpen && (
+                                        <span className="flex-1">{item.label}</span>
+                                    )}
+                                    {sidebarOpen && item.to === '/inbox' && totalUnread > 0 && (
+                                        <span className="px-2 py-0.5 text-xs font-bold text-white bg-blue-500 rounded-full">
+                                            {totalUnread > 99 ? '99+' : totalUnread}
+                                        </span>
+                                    )}
                                 </NavLink>
                             </li>
                         ))}

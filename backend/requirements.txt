@@ -12,3 +12,6 @@ requests
 httpx
 python-decouple
 cryptography
+django-filter
+channels[daphne]
+channels_redis

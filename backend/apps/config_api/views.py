@@ -27,20 +27,84 @@ class WhatsAppAccountViewSet(viewsets.ModelViewSet):
     queryset = WhatsAppAccount.objects.all()
     serializer_class = WhatsAppAccountSerializer
     
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['post'])
     def sync_templates(self, request, pk=None):
         """
-        Placeholder para sincronizar plantillas desde Meta API.
-        TODO: Implementar llamada a WhatsApp Business API para
-        obtener las plantillas aprobadas.
+        Sincroniza plantillas desde la API de Meta (WhatsApp Business).
+        
+        GET https://graph.facebook.com/v18.0/{business_account_id}/message_templates
         """
+        import httpx
+        
         account = self.get_object()
         
-        return Response({
-            'status': 'pending',
-            'message': f'Sync templates for account "{account.name}" - Not implemented yet',
-            'account_id': str(account.id),
-        }, status=status.HTTP_501_NOT_IMPLEMENTED)
+        if not account.business_account_id or not account.access_token:
+            return Response({
+                'status': 'error',
+                'message': 'Account is missing business_account_id or access_token',
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        api_url = f"https://graph.facebook.com/v18.0/{account.business_account_id}/message_templates"
+        headers = {
+            "Authorization": f"Bearer {account.access_token}",
+        }
+        
+        try:
+            with httpx.Client(timeout=30.0) as client:
+                response = client.get(api_url, headers=headers)
+            
+            if response.status_code != 200:
+                logger.error(f"Meta API error: {response.status_code} - {response.text}")
+                return Response({
+                    'status': 'error',
+                    'message': f'Meta API error: {response.status_code}',
+                    'details': response.text,
+                }, status=status.HTTP_502_BAD_GATEWAY)
+            
+            data = response.json()
+            templates_data = data.get('data', [])
+            
+            synced_count = 0
+            updated_count = 0
+            
+            for tmpl in templates_data:
+                template, created = WhatsAppTemplate.objects.update_or_create(
+                    account=account,
+                    name=tmpl.get('name'),
+                    language=tmpl.get('language'),
+                    defaults={
+                        'category': tmpl.get('category', 'UTILITY'),
+                        'status': tmpl.get('status', 'PENDING'),
+                        'components': tmpl.get('components', []),
+                    }
+                )
+                if created:
+                    synced_count += 1
+                else:
+                    updated_count += 1
+            
+            logger.info(f"Synced {synced_count} new templates, updated {updated_count} for account {account.name}")
+            
+            return Response({
+                'status': 'success',
+                'message': f'Synced {synced_count} new templates, updated {updated_count}',
+                'total_from_meta': len(templates_data),
+                'synced': synced_count,
+                'updated': updated_count,
+            }, status=status.HTTP_200_OK)
+            
+        except httpx.RequestError as e:
+            logger.error(f"Request error syncing templates: {e}")
+            return Response({
+                'status': 'error',
+                'message': f'Failed to connect to Meta API: {str(e)}',
+            }, status=status.HTTP_502_BAD_GATEWAY)
+        except Exception as e:
+            logger.error(f"Error syncing templates: {e}")
+            return Response({
+                'status': 'error',
+                'message': f'Unexpected error: {str(e)}',
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class WhatsAppTemplateViewSet(viewsets.ModelViewSet):

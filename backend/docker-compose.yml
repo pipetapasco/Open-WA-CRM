@@ -41,7 +41,7 @@ services:
       redis:
         condition: service_healthy
     env_file: .env
-    command: python manage.py runserver 0.0.0.0:8000
+    command: daphne -b 0.0.0.0 -p 8000 config.asgi:application
 
   celery_worker:
     build:
@@ -55,7 +55,7 @@ services:
       redis:
         condition: service_healthy
     env_file: .env
-    command: celery -A config worker --loglevel=info --concurrency=4
+    command: celery -A config worker --loglevel=info --concurrency=4 -Q celery,whatsapp,messages
 
   celery_beat:
     build:
