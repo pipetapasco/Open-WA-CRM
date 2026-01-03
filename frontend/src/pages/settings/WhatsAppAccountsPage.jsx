@@ -1,0 +1,205 @@
+import { useState, useEffect } from 'react';
+import { Plus, Settings, ExternalLink, Loader2, Trash2 } from 'lucide-react';
+import { getAccounts, deleteAccount } from '../../services/whatsappService';
+import ConnectAccountModal from '../../components/modals/ConnectAccountModal';
+
+function AccountCard({ account, onDelete }) {
+    const [deleting, setDeleting] = useState(false);
+    const isActive = account.status === 'active';
+
+    const handleDelete = async () => {
+        if (!confirm(`¿Estás seguro de eliminar la cuenta "${account.name}"?`)) return;
+
+        setDeleting(true);
+        try {
+            await deleteAccount(account.id);
+            onDelete?.(account.id);
+        } catch (err) {
+            console.error('Error deleting account:', err);
+            alert('Error al eliminar la cuenta');
+        } finally {
+            setDeleting(false);
+        }
+    };
+
+    return (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
+            {/* Card Header */}
+            <div className="p-4 border-b border-gray-100">
+                <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-gray-900">{account.name}</h3>
+                    <span
+                        className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full ${isActive
+                                ? 'bg-green-50 text-green-700'
+                                : 'bg-red-50 text-red-700'
+                            }`}
+                    >
+                        <span
+                            className={`w-2 h-2 rounded-full ${isActive ? 'bg-green-500' : 'bg-red-500'
+                                }`}
+                        />
+                        {isActive ? 'Conectado' : 'Desconectado'}
+                    </span>
+                </div>
+            </div>
+
+            {/* Card Body */}
+            <div className="p-4 space-y-3">
+                <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Phone ID</p>
+                    <p className="text-sm text-gray-700 font-mono">{account.phone_number_id}</p>
+                </div>
+                <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Business Account</p>
+                    <p className="text-sm text-gray-700 font-mono">{account.business_account_id}</p>
+                </div>
+                {/* Indicadores de tokens */}
+                <div className="flex gap-2">
+                    <span className={`text-xs px-2 py-0.5 rounded ${account.has_access_token ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {account.has_access_token ? '✓ Token' : '✗ Sin Token'}
+                    </span>
+                </div>
+            </div>
+
+            {/* Card Footer */}
+            <div className="px-4 py-3 bg-gray-50 rounded-b-xl border-t border-gray-100 flex gap-2">
+                <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                    <Settings size={16} />
+                    Gestionar
+                </button>
+                <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 hover:border-red-300 transition-colors disabled:opacity-50"
+                >
+                    {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function LoadingSkeleton() {
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 animate-pulse">
+                    <div className="flex justify-between items-center mb-4">
+                        <div className="h-5 bg-gray-200 rounded w-32"></div>
+                        <div className="h-5 bg-gray-200 rounded w-20"></div>
+                    </div>
+                    <div className="space-y-3">
+                        <div className="h-4 bg-gray-200 rounded w-full"></div>
+                        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+export default function WhatsAppAccountsPage() {
+    const [accounts, setAccounts] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const fetchAccounts = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            const data = await getAccounts();
+            setAccounts(data);
+        } catch (err) {
+            console.error('Error fetching accounts:', err);
+            setError('No se pudieron cargar las cuentas. Verifica que el backend esté corriendo.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchAccounts();
+    }, []);
+
+    const handleAccountCreated = () => {
+        fetchAccounts();
+    };
+
+    const handleAccountDeleted = (deletedId) => {
+        setAccounts((prev) => prev.filter((acc) => acc.id !== deletedId));
+    };
+
+    return (
+        <div className="p-6 lg:p-8">
+            {/* Page Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900">Canales de WhatsApp</h1>
+                    <p className="text-gray-500 mt-1">
+                        Gestiona tus cuentas de WhatsApp Business conectadas.
+                    </p>
+                </div>
+                <button
+                    onClick={() => setIsModalOpen(true)}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg shadow-sm hover:bg-blue-700 hover:shadow-md transition-all duration-200"
+                >
+                    <Plus size={18} />
+                    Conectar Cuenta
+                </button>
+            </div>
+
+            {/* Error State */}
+            {error && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+                    {error}
+                </div>
+            )}
+
+            {/* Loading State */}
+            {loading && <LoadingSkeleton />}
+
+            {/* Accounts Grid */}
+            {!loading && !error && accounts.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {accounts.map((account) => (
+                        <AccountCard
+                            key={account.id}
+                            account={account}
+                            onDelete={handleAccountDeleted}
+                        />
+                    ))}
+                </div>
+            )}
+
+            {/* Empty State */}
+            {!loading && !error && accounts.length === 0 && (
+                <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
+                    <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                        <ExternalLink size={24} className="text-gray-400" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                        No hay cuentas conectadas
+                    </h3>
+                    <p className="text-gray-500 mb-4">
+                        Conecta tu primera cuenta de WhatsApp Business para comenzar.
+                    </p>
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                        <Plus size={16} />
+                        Conectar Cuenta
+                    </button>
+                </div>
+            )}
+
+            {/* Connect Account Modal */}
+            <ConnectAccountModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                onSuccess={handleAccountCreated}
+            />
+        </div>
+    );
+}

@@ -29,11 +29,6 @@ class WhatsAppAccountViewSet(viewsets.ModelViewSet):
         """
         account = self.get_object()
         
-        # TODO: Implementar lógica real
-        # 1. Llamar a Meta API: GET /{WABA_ID}/message_templates
-        # 2. Parsear respuesta
-        # 3. Crear/Actualizar WhatsAppTemplate objects
-        
         return Response({
             'status': 'pending',
             'message': f'Sync templates for account "{account.name}" - Not implemented yet',
