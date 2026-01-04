@@ -378,6 +378,18 @@ def process_incoming_message(message: dict, phone_number_id: str):
         
         logger.info(f"Message saved: {message.get('id')}")
         
+        # === AI Bot Integration ===
+        # Disparar procesamiento de IA si está habilitado
+        try:
+            from apps.ai_bot.services import AIBotService
+            ai_service = AIBotService(conversation)
+            if ai_service.is_enabled():
+                from apps.ai_bot.tasks import process_ai_response
+                process_ai_response.delay(str(conversation.id))
+                logger.info(f"AI processing triggered for conversation {conversation.id}")
+        except Exception as ai_error:
+            logger.warning(f"AI processing skipped: {ai_error}")
+        
     except Exception as exc:
         logger.error(f"Error processing message: {exc}")
         raise

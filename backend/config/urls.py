@@ -26,4 +26,5 @@ urlpatterns = [
     path('api/config/', include('apps.config_api.urls')),
     path('api/contacts/', include('apps.contacts.urls')),
     path('api/chat/', include('apps.chat.urls')),
+    path('api/ai-bot/', include('apps.ai_bot.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

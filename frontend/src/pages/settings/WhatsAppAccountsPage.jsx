@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Plus, Settings, ExternalLink, Loader2, Trash2, Copy, Check, Link2 } from 'lucide-react';
+import { Plus, Settings, ExternalLink, Loader2, Trash2, Copy, Check, Link2, Sparkles } from 'lucide-react';
 import { getAccounts, deleteAccount } from '../../services/whatsappService';
+import { getAIConfigs } from '../../services/aiService';
 import ConnectAccountModal from '../../components/modals/ConnectAccountModal';
 import EditAccountModal from '../../components/modals/EditAccountModal';
+import AIConfigModal from '../../components/modals/AIConfigModal';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
-function AccountCard({ account, onDelete, onEdit }) {
+function AccountCard({ account, aiConfig, onDelete, onEdit, onConfigureAI }) {
     const [deleting, setDeleting] = useState(false);
     const [copied, setCopied] = useState(false);
     const isActive = account.status === 'active';
@@ -99,10 +101,43 @@ function AccountCard({ account, onDelete, onEdit }) {
                         {account.has_access_token ? '✓ Token' : '✗ Sin Token'}
                     </span>
                 </div>
+
+                {/* AI Status */}
+                {aiConfig && (
+                    <div className="pt-3 border-t border-gray-100">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Sparkles size={14} className="text-purple-500" />
+                                <span className="text-xs text-gray-700">
+                                    IA configurada: <span className="font-medium">{aiConfig.provider === 'gemini' ? 'Gemini' : aiConfig.provider}</span>
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <span className={`w-2 h-2 rounded-full ${aiConfig.enabled ? 'bg-green-500' : 'bg-gray-400'}`} />
+                                <span className="text-xs text-gray-500">{aiConfig.enabled ? 'Activa' : 'Pausada'}</span>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => onConfigureAI(account, aiConfig)}
+                            className="mt-2 w-full text-xs text-purple-600 hover:text-purple-700 font-medium py-1.5 hover:bg-purple-50 rounded transition-colors"
+                        >
+                            Editar configuración
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Card Footer */}
             <div className="px-4 py-3 bg-gray-50 rounded-b-xl border-t border-gray-100 flex gap-2">
+                {!aiConfig && (
+                    <button
+                        onClick={() => onConfigureAI(account)}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 hover:border-purple-300 transition-colors"
+                    >
+                        <Sparkles size={16} />
+                        Configurar IA
+                    </button>
+                )}
                 <button
                     onClick={() => onEdit?.(account)}
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors"
@@ -143,11 +178,14 @@ function LoadingSkeleton() {
 
 export default function WhatsAppAccountsPage() {
     const [accounts, setAccounts] = useState([]);
+    const [aiConfigs, setAiConfigs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isAIModalOpen, setIsAIModalOpen] = useState(false);
     const [selectedAccount, setSelectedAccount] = useState(null);
+    const [selectedAIConfig, setSelectedAIConfig] = useState(null);
 
     const fetchAccounts = async () => {
         try {
@@ -155,11 +193,21 @@ export default function WhatsAppAccountsPage() {
             setError(null);
             const data = await getAccounts();
             setAccounts(data);
+            await fetchAIConfigs();
         } catch (err) {
             console.error('Error fetching accounts:', err);
             setError('No se pudieron cargar las cuentas. Verifica que el backend esté corriendo.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchAIConfigs = async () => {
+        try {
+            const data = await getAIConfigs();
+            setAiConfigs(data);
+        } catch (err) {
+            console.error('Error fetching AI configs:', err);
         }
     };
 
@@ -184,6 +232,20 @@ export default function WhatsAppAccountsPage() {
         setIsEditModalOpen(true);
     };
 
+    const handleConfigureAI = (account, existingConfig = null) => {
+        setSelectedAccount(account);
+        setSelectedAIConfig(existingConfig);
+        setIsAIModalOpen(true);
+    };
+
+    const handleAIConfigSuccess = () => {
+        fetchAIConfigs();
+    };
+
+    const getAIConfigForAccount = (accountId) => {
+        return aiConfigs.find(config => config.account === accountId);
+    };
+
     return (
         <div className="p-6 lg:p-8">
             {/* Page Header */}
@@ -194,13 +256,15 @@ export default function WhatsAppAccountsPage() {
                         Gestiona tus cuentas de WhatsApp Business conectadas.
                     </p>
                 </div>
-                <button
-                    onClick={() => setIsCreateModalOpen(true)}
-                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg shadow-sm hover:bg-blue-700 hover:shadow-md transition-all duration-200"
-                >
-                    <Plus size={18} />
-                    Conectar Cuenta
-                </button>
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => setIsCreateModalOpen(true)}
+                        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg shadow-sm hover:bg-blue-700 hover:shadow-md transition-all duration-200"
+                    >
+                        <Plus size={18} />
+                        Conectar Cuenta
+                    </button>
+                </div>
             </div>
 
             {/* Error State */}
@@ -220,8 +284,10 @@ export default function WhatsAppAccountsPage() {
                         <AccountCard
                             key={account.id}
                             account={account}
+                            aiConfig={getAIConfigForAccount(account.id)}
                             onDelete={handleAccountDeleted}
                             onEdit={handleEditAccount}
+                            onConfigureAI={handleConfigureAI}
                         />
                     ))}
                 </div>
@@ -265,6 +331,19 @@ export default function WhatsAppAccountsPage() {
                 }}
                 account={selectedAccount}
                 onSuccess={handleAccountUpdated}
+            />
+
+            {/* AI Configuration Modal */}
+            <AIConfigModal
+                isOpen={isAIModalOpen}
+                onClose={() => {
+                    setIsAIModalOpen(false);
+                    setSelectedAccount(null);
+                    setSelectedAIConfig(null);
+                }}
+                account={selectedAccount}
+                existingConfig={selectedAIConfig}
+                onSuccess={handleAIConfigSuccess}
             />
         </div>
     );
