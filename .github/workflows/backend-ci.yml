@@ -134,19 +134,26 @@ jobs:
 
       - name: Test Docker image
         run: |
-          docker run --rm -d \
+          docker run -d \
             --name backend-test \
             -e SECRET_KEY=test-secret-key \
             -e DEBUG=true \
             -e ENCRYPTION_KEY=YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NT= \
+            -e DATABASE_URL=sqlite://:memory: \
+            -e REDIS_URL=redis://dummy \
             open-wa-crm-backend:test \
             python manage.py check
-          
+
           sleep 5
-          
+
           docker logs backend-test
-          
-          docker stop backend-test || true
+
+          EXIT_CODE=$(docker inspect backend-test --format='{{.State.ExitCode}}')
+          docker rm -f backend-test
+
+          if [ "$EXIT_CODE" != "0" ]; then
+            exit 1
+          fi
 
   security:
     name: Security Scan
