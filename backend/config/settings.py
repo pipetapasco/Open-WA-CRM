@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     'apps.contacts',
     'apps.chat',
     'apps.accounts',
+    'apps.ai_bot',
 ]
 
 MIDDLEWARE = [

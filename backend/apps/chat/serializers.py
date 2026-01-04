@@ -32,6 +32,7 @@ class MessageSerializer(serializers.ModelSerializer):
             'created_at',
             'media_url',
             'is_from_me',
+            'metadata',
         ]
         read_only_fields = ['id', 'created_at']
     

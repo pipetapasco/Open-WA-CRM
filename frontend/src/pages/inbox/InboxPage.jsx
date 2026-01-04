@@ -26,7 +26,8 @@ import {
     FileStack,
     Paperclip,
     Mic,
-    StopCircle
+    StopCircle,
+    Sparkles
 } from 'lucide-react';
 import useChatWebSocket from '../../hooks/useChatWebSocket';
 import { useUnreadCount } from '../../contexts/UnreadContext';
@@ -458,6 +459,9 @@ function MessageBubble({ message }) {
                             minute: '2-digit'
                         })}
                     </span>
+                    {isOutgoing && message.metadata?.ai_generated && (
+                        <Sparkles size={12} className="text-purple-200 mx-0.5" title="Generado por IA" />
+                    )}
                     {isOutgoing && <StatusIcon />}
                 </div>
             </div>
@@ -1126,8 +1130,8 @@ export default function InboxPage() {
         });
 
         // Si el mensaje es del chat activo, agregarlo a la lista
-        // SOLO si es mensaje entrante (los salientes ya se agregaron via handleSendMessage)
-        if (selectedChat?.id === newMessage.conversation_id && newMessage.direction === 'incoming') {
+        // (La deduplicación maneja los mensajes que enviamos nosotros manualmente)
+        if (selectedChat?.id === newMessage.conversation_id) {
             setMessages((prev) => {
                 // Evitar duplicados por ID
                 if (prev.some((m) => m.id === newMessage.id)) {

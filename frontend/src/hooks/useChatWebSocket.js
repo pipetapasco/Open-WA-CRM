@@ -20,6 +20,18 @@ export default function useChatWebSocket({
     const reconnectTimeoutRef = useRef(null);
     const [isConnected, setIsConnected] = useState(false);
 
+    const onNewMessageRef = useRef(onNewMessage);
+    const onConversationUpdateRef = useRef(onConversationUpdate);
+    const onStatusUpdateRef = useRef(onStatusUpdate);
+    const onConnectionChangeRef = useRef(onConnectionChange);
+
+    useEffect(() => {
+        onNewMessageRef.current = onNewMessage;
+        onConversationUpdateRef.current = onConversationUpdate;
+        onStatusUpdateRef.current = onStatusUpdate;
+        onConnectionChangeRef.current = onConnectionChange;
+    }, [onNewMessage, onConversationUpdate, onStatusUpdate, onConnectionChange]);
+
     const connect = useCallback(() => {
         if (socketRef.current?.readyState === WebSocket.OPEN) {
             return;
@@ -31,13 +43,13 @@ export default function useChatWebSocket({
             socket.onopen = () => {
                 console.log('WebSocket connected');
                 setIsConnected(true);
-                onConnectionChange?.(true);
+                onConnectionChangeRef.current?.(true);
             };
 
             socket.onclose = (event) => {
                 console.log('WebSocket disconnected:', event.code);
                 setIsConnected(false);
-                onConnectionChange?.(false);
+                onConnectionChangeRef.current?.(false);
 
                 if (!reconnectTimeoutRef.current) {
                     reconnectTimeoutRef.current = setTimeout(() => {
@@ -54,17 +66,16 @@ export default function useChatWebSocket({
             socket.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
-                    console.log('WebSocket message:', data);
 
                     switch (data.type) {
                         case 'new_message':
-                            onNewMessage?.(data.message);
+                            onNewMessageRef.current?.(data.message);
                             break;
                         case 'conversation_update':
-                            onConversationUpdate?.(data.conversation);
+                            onConversationUpdateRef.current?.(data.conversation);
                             break;
                         case 'status_update':
-                            onStatusUpdate?.(data.status_update);
+                            onStatusUpdateRef.current?.(data.status_update);
                             break;
                         case 'connection_established':
                             console.log('WebSocket handshake complete');
