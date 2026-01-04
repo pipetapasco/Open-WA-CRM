@@ -263,3 +263,34 @@ export async function sendTemplateMessage(conversationId, templateData) {
     const response = await api.post(`${MESSAGES_ENDPOINT}${conversationId}/send_template/`, templateData);
     return response.data;
 }
+
+/**
+ * Sube un archivo multimedia temporalmente
+ * @param {File} file - Archivo a subir
+ * @returns {Promise<Object>} { url, filename, mime_type }
+ */
+export async function uploadMedia(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    // El endpoint es general, no atado a ID específico, pero lo definimos en MessageViewSet
+    // Usamos el list endpoint base para acceder al action 'upload_media'
+    // URL: /chat/messages/upload_media/
+    const response = await api.post(`${MESSAGES_ENDPOINT}upload_media/`, formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data'
+        }
+    });
+    return response.data;
+}
+
+/**
+ * Envía un mensaje multimedia
+ * @param {string} conversationId - UUID de la conversación
+ * @param {Object} mediaData - { media_type, media_url, caption }
+ * @returns {Promise<Object>} Mensaje creado
+ */
+export async function sendMediaMessage(conversationId, mediaData) {
+    const response = await api.post(`${MESSAGES_ENDPOINT}${conversationId}/send_media/`, mediaData);
+    return response.data;
+}

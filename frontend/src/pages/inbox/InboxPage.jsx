@@ -14,7 +14,6 @@ import {
     Download,
     Image as ImageIcon,
     Music,
-    File,
     Play,
     Pause,
     Volume2,
@@ -24,7 +23,10 @@ import {
     X,
     Edit2,
     AlertTriangle,
-    FileStack
+    FileStack,
+    Paperclip,
+    Mic,
+    StopCircle
 } from 'lucide-react';
 import useChatWebSocket from '../../hooks/useChatWebSocket';
 import { useUnreadCount } from '../../contexts/UnreadContext';
@@ -35,7 +37,9 @@ import {
     markAsRead,
     deleteConversation,
     updateContact,
-    sendTemplateMessage
+    sendTemplateMessage,
+    uploadMedia,
+    sendMediaMessage
 } from '../../services/whatsappService';
 import SendTemplateModal from '../../components/modals/SendTemplateModal';
 
@@ -471,7 +475,8 @@ function ChatWindow({
     onDeleteConversation,
     onUpdateContactName,
     onSendTemplate,
-    onTemplateSuccess
+    onTemplateSuccess,
+    onMediaSent
 }) {
     const [inputText, setInputText] = useState('');
     const [showMenu, setShowMenu] = useState(false);
@@ -480,12 +485,154 @@ function ChatWindow({
     const [newContactName, setNewContactName] = useState('');
     const [isSavingName, setIsSavingName] = useState(false);
     const [showTemplateModal, setShowTemplateModal] = useState(false);
+
+    // Media & Recording State
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordingTime, setRecordingTime] = useState(0);
+    const [isUploading, setIsUploading] = useState(false);
+    const [previewFile, setPreviewFile] = useState(null); // New Preview State
+    const mediaRecorderRef = useRef(null);
+    const audioChunksRef = useRef([]);
+    const timerRef = useRef(null);
+    const fileInputRef = useRef(null);
+    const isCancelledRef = useRef(false);
+
     const messagesEndRef = useRef(null);
     const messagesContainerRef = useRef(null);
     const menuRef = useRef(null);
 
     // Verificar si la ventana de 24h está abierta
     const canSendFreeMessage = chat?.can_send_free_message ?? true;
+
+    // Recording Handlers
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+            audioChunksRef.current = [];
+            isCancelledRef.current = false;
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunksRef.current.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = async () => {
+                // Stop tracks cleanup
+                stream.getTracks().forEach(track => track.stop());
+
+                if (isCancelledRef.current) {
+                    return;
+                }
+
+                // Process audio
+                const blobSize = audioChunksRef.current.reduce((acc, chunk) => acc + chunk.size, 0);
+
+                if (blobSize === 0) {
+                    alert('Grabación vacía - por favor intenta de nuevo');
+                    return;
+                }
+
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                const file = new File([audioBlob], 'voice_note.webm', { type: 'audio/webm' });
+
+                await handleUploadAndSend(file, 'audio');
+            };
+
+            mediaRecorder.start(1000); // Collect data every second to ensure chunks
+            setIsRecording(true);
+            setRecordingTime(0);
+
+            timerRef.current = setInterval(() => {
+                setRecordingTime(prev => prev + 1);
+            }, 1000);
+
+        } catch (err) {
+            console.error('Error accessing microphone:', err);
+            alert('No se pudo acceder al micrófono. Verifica los permisos.');
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            if (mediaRecorderRef.current.state !== 'inactive') {
+                mediaRecorderRef.current.stop();
+            }
+            clearInterval(timerRef.current);
+            setIsRecording(false);
+            // Processing happens in onstop
+        }
+    };
+
+    const cancelRecording = () => {
+        isCancelledRef.current = true;
+        if (mediaRecorderRef.current) {
+            if (mediaRecorderRef.current.state !== 'inactive') {
+                mediaRecorderRef.current.stop();
+            }
+        }
+        clearInterval(timerRef.current);
+        setIsRecording(false);
+        audioChunksRef.current = [];
+    };
+
+    // File Handling
+    const handleFileSelect = async (e) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setPreviewFile(file); // Set for preview instead of sending immediately
+
+            // Reset input so potential cancel & re-select works
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handleUploadAndSend = async (file, type) => {
+        setIsUploading(true);
+        try {
+            // 1. Upload
+            const uploadResult = await uploadMedia(file);
+
+            // 2. Send
+            const newMessage = await sendMediaMessage(chat.id, {
+                media_type: type,
+                media_url: uploadResult.url,
+                caption: type !== 'audio' ? inputText : ''
+            });
+
+            // 3. Notify Parent to update UI
+            onMediaSent?.(newMessage);
+
+            if (type !== 'audio') setInputText('');
+            setPreviewFile(null); // Close preview
+
+        } catch (err) {
+            console.error('Error sending media:', err);
+            alert(`Error al enviar archivo multimedia: ${err.message}`);
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const handleSendPreview = async () => {
+        if (!previewFile) return;
+
+        // Determine type
+        let type = 'document';
+        if (previewFile.type.startsWith('image/')) type = 'image';
+        else if (previewFile.type.startsWith('video/')) type = 'video';
+        else if (previewFile.type.startsWith('audio/')) type = 'audio';
+
+        await handleUploadAndSend(previewFile, type);
+    };
+
+    const handleCancelPreview = () => {
+        setPreviewFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
 
     // Cerrar menú al hacer clic fuera
     useEffect(() => {
@@ -674,31 +821,137 @@ function ChatWindow({
             </div>
 
             {/* Message Input or 24h Warning */}
+
             {canSendFreeMessage ? (
-                <form onSubmit={handleSubmit} className="p-4 bg-white border-t border-gray-200">
-                    <div className="flex items-center gap-3">
-                        <input
-                            type="text"
-                            value={inputText}
-                            onChange={(e) => setInputText(e.target.value)}
-                            onKeyPress={handleKeyPress}
-                            placeholder="Escribe un mensaje..."
-                            className="flex-1 px-4 py-3 bg-gray-100 border-0 rounded-full focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-                            disabled={sendingMessage}
-                        />
-                        <button
-                            type="submit"
-                            disabled={!inputText.trim() || sendingMessage}
-                            className="p-3 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                            {sendingMessage ? (
-                                <Loader2 size={20} className="animate-spin" />
-                            ) : (
+                <div className="p-4 bg-white border-t border-gray-200">
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileSelect}
+                        className="hidden"
+                        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                    />
+
+                    {previewFile ? (
+                        <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300">
+                            <div className="flex items-center gap-4 mb-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                {previewFile.type.startsWith('image/') ? (
+                                    <img
+                                        src={URL.createObjectURL(previewFile)}
+                                        alt="Preview"
+                                        className="w-16 h-16 object-cover rounded-md"
+                                    />
+                                ) : (
+                                    <div className="w-16 h-16 bg-blue-100 rounded-md flex items-center justify-center text-blue-500">
+                                        <FileStack size={32} />
+                                    </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-gray-900 truncate">{previewFile.name}</p>
+                                    <p className="text-xs text-gray-500">{(previewFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={handleCancelPreview}
+                                    className="p-3 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
+                                    title="Cancelar"
+                                >
+                                    <X size={24} />
+                                </button>
+
+                                <input
+                                    type="text"
+                                    value={inputText}
+                                    onChange={(e) => setInputText(e.target.value)}
+                                    onKeyPress={(e) => {
+                                        if (e.key === 'Enter') handleSendPreview();
+                                    }}
+                                    placeholder="Añadir un comentario..."
+                                    className="flex-1 px-4 py-3 bg-gray-100 border-0 rounded-full focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                                    disabled={isUploading}
+                                    autoFocus
+                                />
+
+                                <button
+                                    onClick={handleSendPreview}
+                                    disabled={isUploading}
+                                    className="p-3 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg"
+                                >
+                                    {isUploading ? (
+                                        <Loader2 size={20} className="animate-spin" />
+                                    ) : (
+                                        <Send size={20} />
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    ) : isRecording ? (
+                        <div className="flex items-center gap-4 animate-in fade-in duration-200">
+                            <div className="flex-1 flex items-center gap-3 px-4 py-3 bg-red-50 rounded-full text-red-600">
+                                <span className="animate-pulse font-medium">Grabando...</span>
+                                <span className="font-mono ml-auto">{formatDuration(recordingTime)}</span>
+                            </div>
+                            <button
+                                onClick={cancelRecording}
+                                className="p-3 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
+                            >
+                                <X size={24} />
+                            </button>
+                            <button
+                                onClick={stopRecording}
+                                className="p-3 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg"
+                            >
                                 <Send size={20} />
+                            </button>
+                        </div>
+                    ) : (
+                        <form onSubmit={handleSubmit} className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isUploading || sendingMessage}
+                                className="p-3 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
+                            >
+                                <Paperclip size={24} />
+                            </button>
+
+                            <input
+                                type="text"
+                                value={inputText}
+                                onChange={(e) => setInputText(e.target.value)}
+                                onKeyPress={handleKeyPress}
+                                placeholder="Escribe un mensaje..."
+                                className="flex-1 px-4 py-3 bg-gray-100 border-0 rounded-full focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                                disabled={sendingMessage || isUploading}
+                            />
+
+                            {inputText.trim() ? (
+                                <button
+                                    type="submit"
+                                    disabled={!inputText.trim() || sendingMessage || isUploading}
+                                    className="p-3 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    {sendingMessage || isUploading ? (
+                                        <Loader2 size={20} className="animate-spin" />
+                                    ) : (
+                                        <Send size={20} />
+                                    )}
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={startRecording}
+                                    disabled={sendingMessage || isUploading}
+                                    className="p-3 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
+                                >
+                                    <Mic size={24} />
+                                </button>
                             )}
-                        </button>
-                    </div>
-                </form>
+                        </form>
+                    )}
+                </div>
             ) : (
                 <div className="p-4 bg-amber-50 border-t border-amber-200">
                     <div className="flex items-start gap-3">
@@ -957,12 +1210,18 @@ export default function InboxPage() {
     };
 
     // Enviar mensaje
-    const handleSendMessage = async (text) => {
+    const handleSendMessage = async (textOrMessage, isMedia = false) => {
         if (!selectedChat) return;
 
         setSendingMessage(true);
         try {
-            const newMessage = await sendMessage(selectedChat.id, text);
+            let newMessage;
+            if (isMedia) {
+                newMessage = textOrMessage;
+            } else {
+                newMessage = await sendMessage(selectedChat.id, textOrMessage);
+            }
+
             setMessages((prev) => [...prev, newMessage]);
 
             // Actualizar conversación
@@ -972,8 +1231,8 @@ export default function InboxPage() {
 
                 const updated = [...prev];
                 const conversation = { ...updated[index] };
-                conversation.last_message = text;
-                conversation.last_message_at = new Date().toISOString();
+                conversation.last_message = newMessage.body || `[${newMessage.message_type}]`;
+                conversation.last_message_at = newMessage.created_at;
 
                 updated.splice(index, 1);
                 updated.unshift(conversation);
@@ -1089,8 +1348,9 @@ export default function InboxPage() {
                     onDeleteConversation={handleDeleteConversation}
                     onUpdateContactName={handleUpdateContactName}
                     onTemplateSuccess={(newMessage) => {
-                        setMessages((prev) => [...prev, newMessage]);
+                        handleSendMessage(newMessage, true);
                     }}
+                    onMediaSent={(msg) => handleSendMessage(msg, true)}
                 />
             </div>
 
@@ -1106,8 +1366,9 @@ export default function InboxPage() {
                         onDeleteConversation={handleDeleteConversation}
                         onUpdateContactName={handleUpdateContactName}
                         onTemplateSuccess={(newMessage) => {
-                            setMessages((prev) => [...prev, newMessage]);
+                            handleSendMessage(newMessage, true);
                         }}
+                        onMediaSent={(msg) => handleSendMessage(msg, true)}
                     />
                     <button
                         onClick={() => setSelectedChat(null)}

@@ -36,16 +36,43 @@ def send_whatsapp_message(self, message_id: str):
         
         if message.message_type == 'text':
             payload["text"] = {"body": message.body}
+        elif message.message_type in ['image', 'video', 'audio', 'document', 'sticker']:
+            media_id = None
+            
+            # Si tenemos media_url
+            if message.media_url:
+                # Subir archivo a Meta para obtener ID
+                try:
+                    media_id = upload_media_to_meta(message.media_url, account)
+                except Exception as e:
+                    logger.error(f"Failed to upload media to Meta: {e}")
+                    raise e
+            
+            if not media_id:
+                raise Exception("Cannot send media message without media_id")
+                
+            media_obj = {"id": media_id}
+            
+            # Añadir caption solo para tipos soportados
+            if message.message_type in ['image', 'video', 'document'] and message.body:
+                media_obj["caption"] = message.body
+                
+            # Añadir filename para documentos si es posible
+            if message.message_type == 'document':
+                import os
+                media_obj["filename"] = os.path.basename(message.media_url)
+                
+            payload[message.message_type] = media_obj
         
         headers = {
             "Authorization": f"Bearer {account.access_token}",
             "Content-Type": "application/json"
         }
         
-        logger.info(f"Sending message to WhatsApp: {contact.phone_number}")
+        logger.info(f"Sending message to WhatsApp: {contact.phone_number} (Type: {message.message_type})")
         
         # Enviar a la API de Meta
-        with httpx.Client(timeout=30.0) as client:
+        with httpx.Client(timeout=60.0) as client:
             response = client.post(api_url, json=payload, headers=headers)
         
         if response.status_code == 200:
@@ -73,6 +100,66 @@ def send_whatsapp_message(self, message_id: str):
     except Exception as exc:
         logger.error(f"Error sending message: {exc}")
         raise self.retry(exc=exc, countdown=30)
+
+
+def upload_media_to_meta(media_path: str, account) -> str:
+    """
+    Sube un archivo local a la API de WhatsApp y retorna el media_id.
+    """
+    import os
+    import mimetypes
+    from django.conf import settings
+    
+    # 1. Resolver path local absoluto
+    # media_path viene como relativo a MEDIA_URL o absoluto
+    if media_path.startswith(settings.MEDIA_URL):
+        relative_path = media_path[len(settings.MEDIA_URL):]
+        file_path = os.path.join(settings.MEDIA_ROOT, relative_path)
+    elif media_path.startswith('/'):
+        # Asumimos que es relativo a media root si no matchea url media
+        # esto es un poco tricky, mejor intentar reconstruir
+         if settings.MEDIA_URL in media_path:
+             offset = media_path.find(settings.MEDIA_URL) + len(settings.MEDIA_URL)
+             file_path = os.path.join(settings.MEDIA_ROOT, media_path[offset:])
+         else:
+             file_path = media_path
+    else:
+        file_path = os.path.join(settings.MEDIA_ROOT, media_path)
+        
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Media file not found: {file_path}")
+        
+    # 2. Obtener MIME type y tamaño
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if not mime_type:
+        mime_type = 'application/octet-stream'
+    
+    file_size = os.path.getsize(file_path)
+    
+    # 3. Iniciar sesión de upload (resumable) o simple upload?
+    # La API Graph soporta upload simple post a /{phone_id}/media
+    
+    url = f"https://graph.facebook.com/v18.0/{account.phone_number_id}/media"
+    
+    headers = {
+        "Authorization": f"Bearer {account.access_token}"
+    }
+    
+    files = {
+        'file': (os.path.basename(file_path), open(file_path, 'rb'), mime_type)
+    }
+    
+    data = {
+        'messaging_product': 'whatsapp'
+    }
+    
+    with httpx.Client(timeout=60.0) as client:
+        response = client.post(url, headers=headers, files=files, data=data)
+        
+    if response.status_code == 200:
+        return response.json().get('id')
+    else:
+        raise Exception(f"Media upload failed: {response.status_code} - {response.text}")
 
 
 @shared_task(bind=True, queue='messages', max_retries=3)

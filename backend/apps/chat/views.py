@@ -15,6 +15,7 @@ from .serializers import (
     ConversationCreateSerializer,
 )
 from .pagination import MessagePagination
+from rest_framework.parsers import MultiPartParser, FormParser
 
 
 class ConversationViewSet(viewsets.ModelViewSet):
@@ -336,3 +337,77 @@ class MessageViewSet(viewsets.ModelViewSet):
             MessageSerializer(message).data,
             status=status.HTTP_201_CREATED
         )
+
+    @action(detail=False, methods=['post'], url_path='upload_media', parser_classes=[MultiPartParser, FormParser])
+    def upload_media(self, request):
+        """
+        Subida de archivos temporal.
+        POST /messages/upload_media/
+        """
+        file_obj = request.FILES.get('file')
+        if not file_obj:
+            return Response({'error': 'No file provided'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        import os
+        from django.conf import settings
+        from django.core.files.storage import default_storage
+        from django.core.files.base import ContentFile
+        import uuid
+        
+        # Guardar archivo
+        ext = os.path.splitext(file_obj.name)[1]
+        filename = f"{uuid.uuid4().hex}{ext}"
+        save_path = f"whatsapp/uploads/{filename}"
+        
+        path = default_storage.save(save_path, ContentFile(file_obj.read()))
+        media_url = os.path.join(settings.MEDIA_URL, path)
+        
+        return Response({
+            'url': media_url,
+            'filename': filename,
+            'mime_type': file_obj.content_type
+        })
+
+    @action(detail=True, methods=['post'])
+    def send_media(self, request, pk=None):
+        """
+        Envía un mensaje multimedia.
+        
+        POST /messages/{conversation_id}/send_media/
+        """
+        media_type = request.data.get('media_type')
+        media_url = request.data.get('media_url')
+        caption = request.data.get('caption', '')
+        
+        if not media_type or not media_url:
+            return Response(
+                {'error': 'media_type and media_url are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        try:
+            conversation = Conversation.objects.get(pk=pk)
+        except Conversation.DoesNotExist:
+            return Response({'error': 'Conversation not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+        import uuid
+        
+        # Crear mensaje local
+        message = Message.objects.create(
+            conversation=conversation,
+            whatsapp_id=f"local_{uuid.uuid4().hex[:16]}",
+            direction='outgoing',
+            message_type=media_type,
+            body=caption, 
+            media_url=media_url,
+            delivery_status='sent',
+        )
+        
+        conversation.last_message_at = timezone.now()
+        conversation.save(update_fields=['last_message_at'])
+        
+        # Encolar envío
+        from .tasks import send_whatsapp_message
+        send_whatsapp_message.delay(str(message.id))
+        
+        return Response(MessageSerializer(message).data, status=status.HTTP_201_CREATED)
