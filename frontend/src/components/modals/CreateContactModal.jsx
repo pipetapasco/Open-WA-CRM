@@ -28,9 +28,7 @@ export default function CreateContactModal({ isOpen, onClose, onSuccess }) {
                         setFormData(prev => ({ ...prev, account: data[0].id }));
                     }
                 })
-                .catch((err) => {
-                    console.error('Error loading accounts:', err);
-                })
+                .catch(() => { })
                 .finally(() => {
                     setLoadingAccounts(false);
                 });
@@ -53,7 +51,6 @@ export default function CreateContactModal({ isOpen, onClose, onSuccess }) {
             onSuccess?.();
             onClose();
         } catch (err) {
-            console.error('Error creating contact:', err);
             setError(
                 err.response?.data?.detail ||
                 err.response?.data?.phone_number?.[0] ||

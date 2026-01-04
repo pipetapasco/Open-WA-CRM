@@ -22,7 +22,6 @@ export function UnreadProvider({ children }) {
             const total = conversations.reduce((sum, conv) => sum + (conv.unread_count || 0), 0);
             setTotalUnread(total);
         } catch (error) {
-            console.error('Error fetching unread count:', error);
         }
     }, []);
 
@@ -47,12 +46,9 @@ export function UnreadProvider({ children }) {
                 const socket = new WebSocket(WS_URL);
 
                 socket.onopen = () => {
-                    console.log('[UnreadContext] WebSocket connected');
                 };
 
                 socket.onclose = (event) => {
-                    console.log('[UnreadContext] WebSocket disconnected:', event.code);
-                    // Reconectar
                     if (!reconnectTimeoutRef.current) {
                         reconnectTimeoutRef.current = setTimeout(() => {
                             reconnectTimeoutRef.current = null;
@@ -61,8 +57,7 @@ export function UnreadProvider({ children }) {
                     }
                 };
 
-                socket.onerror = (error) => {
-                    console.error('[UnreadContext] WebSocket error:', error);
+                socket.onerror = () => {
                 };
 
                 socket.onmessage = (event) => {
@@ -70,17 +65,14 @@ export function UnreadProvider({ children }) {
                         const data = JSON.parse(event.data);
                         // Solo nos interesa incrementar cuando llega un mensaje entrante nuevo
                         if (data.type === 'new_message' && data.message?.direction === 'incoming') {
-                            console.log('[UnreadContext] Incrementing unread count');
                             setTotalUnread((prev) => prev + 1);
                         }
                     } catch (error) {
-                        console.error('[UnreadContext] Error parsing message:', error);
                     }
                 };
 
                 socketRef.current = socket;
             } catch (error) {
-                console.error('[UnreadContext] Failed to create WebSocket:', error);
             }
         };
 

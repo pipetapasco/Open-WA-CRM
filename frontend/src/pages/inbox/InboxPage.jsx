@@ -199,7 +199,7 @@ function CustomAudioPlayer({ src, isOutgoing }) {
 
         const setAudioTime = () => setCurrentTime(audio.currentTime);
         const onEnded = () => setIsPlaying(false);
-        const onError = (e) => console.error("Audio error:", e);
+        const onError = () => { };
 
         // loadedmetadata es más confiable que loadeddata para obtener la duración
         audio.addEventListener('loadedmetadata', setAudioData);
@@ -225,7 +225,7 @@ function CustomAudioPlayer({ src, isOutgoing }) {
     const togglePlay = () => {
         if (!audioRef.current) return;
         if (audioRef.current.paused) {
-            audioRef.current.play().catch(e => console.error("Playback failed", e));
+            audioRef.current.play().catch(() => { });
             setIsPlaying(true);
         } else {
             audioRef.current.pause();
@@ -555,7 +555,6 @@ function ChatWindow({
             }, 1000);
 
         } catch (err) {
-            console.error('Error accessing microphone:', err);
             alert('No se pudo acceder al micrófono. Verifica los permisos.');
         }
     };
@@ -768,7 +767,6 @@ function ChatWindow({
                                                 await onDeleteConversation(chat.id);
                                             }
                                         } catch (err) {
-                                            console.error('Error deleting:', err);
                                         } finally {
                                             setIsDeleting(false);
                                         }
@@ -1025,7 +1023,6 @@ function ChatWindow({
                                         }
                                         setShowEditNameModal(false);
                                     } catch (err) {
-                                        console.error('Error updating name:', err);
                                         alert('Error al actualizar el nombre');
                                     } finally {
                                         setIsSavingName(false);
@@ -1088,13 +1085,8 @@ export default function InboxPage() {
 
     // Callback para nuevos mensajes via WebSocket
     const handleNewMessage = useCallback((newMessage) => {
-        console.log('New message received:', newMessage);
-
-        // Reproducir sonido para mensajes entrantes
         if (newMessage.direction === 'incoming') {
-            notificationAudioRef.current?.play().catch((e) => {
-                console.log('Autoplay blocked:', e.message);
-            });
+            notificationAudioRef.current?.play().catch(() => { });
         }
 
         // Actualizar la lista de conversaciones
@@ -1144,9 +1136,6 @@ export default function InboxPage() {
 
     // Callback para actualizaciones de estado via WebSocket
     const handleStatusUpdate = useCallback((statusUpdate) => {
-        console.log('Status update received:', statusUpdate);
-
-        // Actualizar el estado del mensaje en el array de mensajes
         setMessages((prev) =>
             prev.map((msg) =>
                 msg.id === statusUpdate.message_id
@@ -1169,7 +1158,6 @@ export default function InboxPage() {
             const data = await getConversations();
             setConversations(data);
         } catch (error) {
-            console.error('Error loading conversations:', error);
         } finally {
             setLoadingChats(false);
         }
@@ -1183,7 +1171,6 @@ export default function InboxPage() {
             // La API devuelve paginado, tomamos los results
             setMessages(data.results || data);
         } catch (error) {
-            console.error('Error loading messages:', error);
             setMessages([]);
         } finally {
             setLoadingMessages(false);
@@ -1208,7 +1195,6 @@ export default function InboxPage() {
                 // Decrementar contador global
                 decrementUnread(chat.unread_count);
             } catch (error) {
-                console.error('Error marking as read:', error);
             }
         }
     };
@@ -1244,7 +1230,6 @@ export default function InboxPage() {
                 return updated;
             });
         } catch (error) {
-            console.error('Error sending message:', error);
             alert('Error al enviar el mensaje');
         } finally {
             setSendingMessage(false);
@@ -1263,7 +1248,6 @@ export default function InboxPage() {
                 setMessages([]);
             }
         } catch (error) {
-            console.error('Error deleting conversation:', error);
             alert('Error al eliminar la conversación');
         }
     };
@@ -1288,8 +1272,7 @@ export default function InboxPage() {
                 }));
             }
         } catch (error) {
-            console.error('Error updating contact name:', error);
-            throw error; // Re-lanzar para que el modal muestre el error
+            throw error;
         }
     };
 

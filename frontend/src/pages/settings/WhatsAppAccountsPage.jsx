@@ -23,7 +23,6 @@ function AccountCard({ account, aiConfig, onDelete, onEdit, onConfigureAI }) {
             await deleteAccount(account.id);
             onDelete?.(account.id);
         } catch (err) {
-            console.error('Error deleting account:', err);
             alert('Error al eliminar la cuenta');
         } finally {
             setDeleting(false);
@@ -36,7 +35,6 @@ function AccountCard({ account, aiConfig, onDelete, onEdit, onConfigureAI }) {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
-            console.error('Error copying to clipboard:', err);
         }
     };
 
@@ -195,7 +193,6 @@ export default function WhatsAppAccountsPage() {
             setAccounts(data);
             await fetchAIConfigs();
         } catch (err) {
-            console.error('Error fetching accounts:', err);
             setError('No se pudieron cargar las cuentas. Verifica que el backend esté corriendo.');
         } finally {
             setLoading(false);
@@ -207,7 +204,6 @@ export default function WhatsAppAccountsPage() {
             const data = await getAIConfigs();
             setAiConfigs(data);
         } catch (err) {
-            console.error('Error fetching AI configs:', err);
         }
     };
 

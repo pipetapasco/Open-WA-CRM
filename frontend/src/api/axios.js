@@ -29,7 +29,6 @@ api.interceptors.response.use(
 
         // Si no hay respuesta (servidor caído), no intentar refresh
         if (!error.response) {
-            console.error('API Error: No se pudo conectar al servidor');
             return Promise.reject(error);
         }
 
@@ -69,7 +68,6 @@ api.interceptors.response.use(
             }
         }
 
-        console.error('API Error:', error.response?.data || error.message);
         return Promise.reject(error);
     }
 );

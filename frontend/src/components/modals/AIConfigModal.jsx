@@ -61,8 +61,6 @@ export default function AIConfigModal({ isOpen, onClose, account, existingConfig
             const data = await getAIProviders();
             setProviders(data);
         } catch (err) {
-            console.error('Error fetching providers:', err);
-            // Fallback
             setProviders([{ id: 'gemini', name: 'Google Gemini' }]);
         } finally {
             setLoadingProviders(false);
@@ -102,7 +100,6 @@ export default function AIConfigModal({ isOpen, onClose, account, existingConfig
             onSuccess?.();
             onClose();
         } catch (err) {
-            console.error('Error saving AI config:', err);
             setError(
                 err.response?.data?.detail ||
                 err.response?.data?.api_key?.[0] ||

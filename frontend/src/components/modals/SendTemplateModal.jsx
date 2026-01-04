@@ -38,7 +38,6 @@ export default function SendTemplateModal({
 
     // Cargar plantillas al abrir el modal
     useEffect(() => {
-        console.log('[SendTemplateModal] isOpen:', isOpen, 'accountId:', accountId);
         if (isOpen && accountId) {
             loadTemplates();
         } else if (isOpen && !accountId) {
@@ -58,7 +57,6 @@ export default function SendTemplateModal({
                 setError('No hay plantillas aprobadas. Haz clic en "Sincronizar" para obtenerlas desde Meta.');
             }
         } catch (err) {
-            console.error('Error loading templates:', err);
             setError('Error al cargar las plantillas.');
         } finally {
             setLoading(false);
@@ -79,7 +77,6 @@ export default function SendTemplateModal({
             // Recargar las plantillas después de sincronizar
             await loadTemplates();
         } catch (err) {
-            console.error('Error syncing templates:', err);
             setError('Error al sincronizar plantillas desde Meta.');
         } finally {
             setSyncing(false);
@@ -249,15 +246,12 @@ export default function SendTemplateModal({
                 // Si no existe ID de conversación, crearla primero
                 if (!targetConversationId) {
                     try {
-                        console.log('Creando nueva conversación...', { contact: contactId, account: accountId });
                         const newConv = await createConversation({
                             contact: contactId,
                             account: accountId
                         });
                         targetConversationId = newConv.id;
-                        console.log('Nueva conversación creada:', targetConversationId);
                     } catch (err) {
-                        console.error('Error creating conversation:', err);
                         throw new Error('No se pudo crear la conversación. Verifica la conexión.');
                     }
                 }
@@ -268,7 +262,6 @@ export default function SendTemplateModal({
             onSuccess?.(result);
             onClose();
         } catch (err) {
-            console.error('Error sending template:', err);
             const errorMessage = err.response?.data?.error || err.response?.data?.message || 'Error al enviar la plantilla. Por favor intenta de nuevo.';
             setError(errorMessage);
         } finally {

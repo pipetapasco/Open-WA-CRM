@@ -9,6 +9,7 @@ Reference: https://channels.readthedocs.io/en/stable/
 """
 
 import os
+
 from django.core.asgi import get_asgi_application
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
@@ -17,20 +18,17 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 # is populated before importing code that may import ORM models.
 django_asgi_app = get_asgi_application()
 
-from channels.routing import ProtocolTypeRouter, URLRouter
-from channels.auth import AuthMiddlewareStack
-from channels.security.websocket import AllowedHostsOriginValidator
+from channels.auth import AuthMiddlewareStack  # noqa: E402
+from channels.routing import ProtocolTypeRouter, URLRouter  # noqa: E402
+from channels.security.websocket import AllowedHostsOriginValidator  # noqa: E402
 
-from apps.chat.routing import websocket_urlpatterns
+from apps.chat.routing import websocket_urlpatterns  # noqa: E402
 
-application = ProtocolTypeRouter({
-    # HTTP requests -> Django REST API
-    "http": django_asgi_app,
-    
-    # WebSocket connections -> Django Channels
-    "websocket": AllowedHostsOriginValidator(
-        AuthMiddlewareStack(
-            URLRouter(websocket_urlpatterns)
-        )
-    ),
-})
+application = ProtocolTypeRouter(
+    {
+        # HTTP requests -> Django REST API
+        'http': django_asgi_app,
+        # WebSocket connections -> Django Channels
+        'websocket': AllowedHostsOriginValidator(AuthMiddlewareStack(URLRouter(websocket_urlpatterns))),
+    }
+)

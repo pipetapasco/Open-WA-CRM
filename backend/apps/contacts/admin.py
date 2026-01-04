@@ -1,6 +1,8 @@
+import json
+
 from django.contrib import admin
 from django.utils.html import format_html
-import json
+
 from .models import Contact
 
 
@@ -11,21 +13,13 @@ class ContactAdmin(admin.ModelAdmin):
     search_fields = ['phone_number', 'name']
     readonly_fields = ['id', 'created_at', 'updated_at', 'metadata_formatted']
     list_select_related = ['account']
-    
+
     fieldsets = (
-        ('Contact Info', {
-            'fields': ('id', 'account', 'phone_number', 'name', 'profile_picture_url')
-        }),
-        ('Metadata', {
-            'fields': ('metadata_formatted',),
-            'classes': ('collapse',)
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
+        ('Contact Info', {'fields': ('id', 'account', 'phone_number', 'name', 'profile_picture_url')}),
+        ('Metadata', {'fields': ('metadata_formatted',), 'classes': ('collapse',)}),
+        ('Timestamps', {'fields': ('created_at', 'updated_at'), 'classes': ('collapse',)}),
     )
-    
+
     @admin.display(description='Metadata (JSON)')
     def metadata_formatted(self, obj):
         if obj.metadata:
