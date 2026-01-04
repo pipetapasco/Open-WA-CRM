@@ -21,11 +21,7 @@ class MediaConversionTests(TestCase):
 
         # Mock existence
         def exists_side_effect(path):
-            if path == expected_file_path:
-                return True
-            if path == output_file_path:
-                return True  # Simulate output created
-            return False
+            return path in (expected_file_path, output_file_path)
 
         mock_exists.side_effect = exists_side_effect
 
@@ -56,11 +52,7 @@ class MediaConversionTests(TestCase):
 
         # Mock existence
         def exists_side_effect(path):
-            if path == expected_file_path:
-                return True
-            if path == output_file_path:
-                return True
-            return False
+            return path in (expected_file_path, output_file_path)
 
         mock_exists.side_effect = exists_side_effect
 

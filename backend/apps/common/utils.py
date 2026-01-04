@@ -18,9 +18,8 @@ def convert_media_for_whatsapp(media_path: str) -> str:
         return media_path
 
     mime_type, _ = mimetypes.guess_type(full_path)
-    if not mime_type:
-        if full_path.endswith('.webm'):
-            mime_type = 'video/webm'
+    if not mime_type and full_path.endswith('.webm'):
+        mime_type = 'video/webm'
 
     if mime_type in ['video/webm', 'audio/webm']:
         directory = os.path.dirname(full_path)
@@ -31,7 +30,7 @@ def convert_media_for_whatsapp(media_path: str) -> str:
         try:
             command = ['ffmpeg', '-i', full_path, '-c:a', 'libopus', '-b:a', '32k', '-vn', '-y', output_path]
 
-            subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(command, check=True, capture_output=True)
 
             if os.path.exists(output_path):
                 if media_path.startswith(settings.MEDIA_URL):
@@ -76,7 +75,7 @@ def get_media_duration(media_path: str) -> float:
             full_path,
         ]
 
-        result = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        result = subprocess.run(command, check=True, capture_output=True, text=True)
 
         duration = float(result.stdout.strip())
         return duration
