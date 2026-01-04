@@ -41,13 +41,11 @@ export default function useChatWebSocket({
             const socket = new WebSocket(WS_URL);
 
             socket.onopen = () => {
-                console.log('WebSocket connected');
                 setIsConnected(true);
                 onConnectionChangeRef.current?.(true);
             };
 
             socket.onclose = (event) => {
-                console.log('WebSocket disconnected:', event.code);
                 setIsConnected(false);
                 onConnectionChangeRef.current?.(false);
 
@@ -59,8 +57,7 @@ export default function useChatWebSocket({
                 }
             };
 
-            socket.onerror = (error) => {
-                console.error('WebSocket error:', error);
+            socket.onerror = () => {
             };
 
             socket.onmessage = (event) => {
@@ -78,19 +75,15 @@ export default function useChatWebSocket({
                             onStatusUpdateRef.current?.(data.status_update);
                             break;
                         case 'connection_established':
-                            console.log('WebSocket handshake complete');
                             break;
                         default:
-                            console.log('Unknown message type:', data.type);
                     }
                 } catch (error) {
-                    console.error('Error parsing WebSocket message:', error);
                 }
             };
 
             socketRef.current = socket;
         } catch (error) {
-            console.error('Failed to create WebSocket:', error);
         }
     }, [onNewMessage, onConversationUpdate, onStatusUpdate, onConnectionChange]);
 
@@ -109,8 +102,6 @@ export default function useChatWebSocket({
     const sendMessage = useCallback((data) => {
         if (socketRef.current?.readyState === WebSocket.OPEN) {
             socketRef.current.send(JSON.stringify(data));
-        } else {
-            console.warn('WebSocket not connected, cannot send message');
         }
     }, []);
 

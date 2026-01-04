@@ -43,7 +43,6 @@ export default function ConnectAccountModal({ isOpen, onClose, onSuccess }) {
             onSuccess?.();
             onClose();
         } catch (err) {
-            console.error('Error creating account:', err);
             setError(
                 err.response?.data?.detail ||
                 err.response?.data?.phone_number_id?.[0] ||

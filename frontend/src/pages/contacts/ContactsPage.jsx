@@ -121,9 +121,8 @@ export default function ContactsPage() {
             const params = search ? { search } : {};
             const data = await getContacts(params);
             setContacts(data);
-            setSelectedContacts(new Set()); // Limpiar selección al recargar
+            setSelectedContacts(new Set());
         } catch (err) {
-            console.error('Error fetching contacts:', err);
             setError('No se pudieron cargar los contactos.');
         } finally {
             setLoading(false);
@@ -181,7 +180,6 @@ export default function ContactsPage() {
             await bulkDeleteContacts(Array.from(selectedContacts));
             fetchContacts(searchTerm);
         } catch (err) {
-            console.error('Error bulk deleting:', err);
             alert('Error al eliminar contactos');
         } finally {
             setIsBulkDeleting(false);

@@ -1,4 +1,5 @@
 from django.contrib import admin
+
 from .models import WhatsAppAccount, WhatsAppTemplate
 
 
@@ -8,18 +9,14 @@ class WhatsAppAccountAdmin(admin.ModelAdmin):
     list_filter = ['status', 'created_at']
     search_fields = ['name', 'phone_number_id', 'business_account_id']
     readonly_fields = ['id', 'created_at', 'updated_at']
-    
+
     fieldsets = (
-        ('Account Info', {
-            'fields': ('id', 'name', 'status')
-        }),
-        ('Meta Configuration', {
-            'fields': ('phone_number_id', 'business_account_id', 'access_token', 'webhook_verify_token')
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
+        ('Account Info', {'fields': ('id', 'name', 'status')}),
+        (
+            'Meta Configuration',
+            {'fields': ('phone_number_id', 'business_account_id', 'access_token', 'webhook_verify_token')},
+        ),
+        ('Timestamps', {'fields': ('created_at', 'updated_at'), 'classes': ('collapse',)}),
     )
 
 
@@ -30,20 +27,10 @@ class WhatsAppTemplateAdmin(admin.ModelAdmin):
     search_fields = ['name', 'language']
     readonly_fields = ['id', 'created_at', 'updated_at']
     list_select_related = ['account']
-    
+
     fieldsets = (
-        ('Template Info', {
-            'fields': ('id', 'account', 'name', 'language')
-        }),
-        ('Status', {
-            'fields': ('category', 'status')
-        }),
-        ('Structure', {
-            'fields': ('components',),
-            'description': 'Template components from Meta API'
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
+        ('Template Info', {'fields': ('id', 'account', 'name', 'language')}),
+        ('Status', {'fields': ('category', 'status')}),
+        ('Structure', {'fields': ('components',), 'description': 'Template components from Meta API'}),
+        ('Timestamps', {'fields': ('created_at', 'updated_at'), 'classes': ('collapse',)}),
     )
