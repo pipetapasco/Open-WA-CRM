@@ -115,6 +115,30 @@ export async function updateContact(id, data) {
     return response.data;
 }
 
+/**
+ * Elimina múltiples contactos
+ * @param {Array<string>} ids - Lista de UUIDs de contactos
+ * @returns {Promise<Object>} Resultado
+ */
+export async function bulkDeleteContacts(ids) {
+    const response = await api.post(`${CONTACTS_ENDPOINT}bulk_delete/`, { ids });
+    return response.data;
+}
+
+/**
+ * Envía plantilla a múltiples contactos
+ * @param {Array<string>} ids - Lista de UUIDs de contactos
+ * @param {Object} templateData - Datos de la plantilla
+ * @returns {Promise<Object>} Resultado
+ */
+export async function bulkSendTemplate(ids, templateData) {
+    const response = await api.post(`${CONTACTS_ENDPOINT}bulk_send_template/`, {
+        ids,
+        template_data: templateData
+    });
+    return response.data;
+}
+
 // ============== CHAT ==============
 
 const CONVERSATIONS_ENDPOINT = '/chat/conversations/';

@@ -359,8 +359,14 @@ def process_status_update(status_update: dict):
             except Exception as ws_error:
                 logger.error(f"Error sending status via WebSocket: {ws_error}")
         else:
-            logger.warning(f"Message not found for status update: {whatsapp_id}")
+            logger.warning(f"Message not found for status update: {whatsapp_id}. Retrying...")
+            # Reintentar por si es una condición de carrera con el guardado del ID
+            # Exponential backoff o fixed delay
+            raise self.retry(countdown=2, max_retries=5)
             
     except Exception as exc:
         logger.error(f"Error processing status update: {exc}")
-        raise
+        # No reintentar indefinidamente para errores generales, pero sí para la búsqueda
+        if "Message not found" in str(exc) or isinstance(exc, self.retry_exception):
+             raise exc
+        raise self.retry(exc=exc, countdown=60, max_retries=3)

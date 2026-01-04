@@ -1,12 +1,24 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, User, MessageSquare, Phone, Building2, Loader2, Users, Plus, Send } from 'lucide-react';
-import { getContacts } from '../../services/whatsappService';
+import { Search, User, MessageSquare, Phone, Building2, Loader2, Users, Plus, Send, Trash2, CheckSquare, Square, X } from 'lucide-react';
+import { getContacts, bulkDeleteContacts } from '../../services/whatsappService';
 import CreateContactModal from '../../components/modals/CreateContactModal';
 import SendTemplateModal from '../../components/modals/SendTemplateModal';
 
-function ContactRow({ contact, onNewMessage }) {
+function ContactRow({ contact, onNewMessage, isSelected, onToggleSelect }) {
     return (
-        <tr className="hover:bg-gray-50 transition-colors">
+        <tr className={`hover:bg-gray-50 transition-colors ${isSelected ? 'bg-blue-50/50' : ''}`}>
+            {/* Checkbox */}
+            <td className="px-6 py-4 whitespace-nowrap w-4">
+                <div className="flex items-center">
+                    <button
+                        onClick={() => onToggleSelect(contact.id)}
+                        className={`p-1 rounded transition-colors ${isSelected ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                        {isSelected ? <CheckSquare size={20} /> : <Square size={20} />}
+                    </button>
+                </div>
+            </td>
+
             {/* Avatar y Nombre */}
             <td className="px-6 py-4 whitespace-nowrap">
                 <div className="flex items-center gap-3">
@@ -98,6 +110,10 @@ export default function ContactsPage() {
     const [templateModalOpen, setTemplateModalOpen] = useState(false);
     const [selectedContact, setSelectedContact] = useState(null);
 
+    // Estado para selección múltiple
+    const [selectedContacts, setSelectedContacts] = useState(new Set());
+    const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
     const fetchContacts = useCallback(async (search = '') => {
         try {
             setLoading(true);
@@ -105,6 +121,7 @@ export default function ContactsPage() {
             const params = search ? { search } : {};
             const data = await getContacts(params);
             setContacts(data);
+            setSelectedContacts(new Set()); // Limpiar selección al recargar
         } catch (err) {
             console.error('Error fetching contacts:', err);
             setError('No se pudieron cargar los contactos.');
@@ -130,14 +147,57 @@ export default function ContactsPage() {
         fetchContacts(searchTerm);
     };
 
-    // Handler para abrir modal de nuevo mensaje
+    // Handler para abrir modal de nuevo mensaje (individual)
     const handleNewMessage = (contact) => {
         setSelectedContact(contact);
         setTemplateModalOpen(true);
     };
 
+    // Handlers de selección
+    const toggleSelectAll = () => {
+        if (selectedContacts.size === contacts.length) {
+            setSelectedContacts(new Set());
+        } else {
+            setSelectedContacts(new Set(contacts.map(c => c.id)));
+        }
+    };
+
+    const toggleSelectContact = (id) => {
+        const newSelected = new Set(selectedContacts);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedContacts(newSelected);
+    };
+
+    // Bulk Actions
+    const handleBulkDelete = async () => {
+        if (!window.confirm(`¿Estás seguro de eliminar ${selectedContacts.size} contactos?`)) return;
+
+        setIsBulkDeleting(true);
+        try {
+            await bulkDeleteContacts(Array.from(selectedContacts));
+            fetchContacts(searchTerm);
+        } catch (err) {
+            console.error('Error bulk deleting:', err);
+            alert('Error al eliminar contactos');
+        } finally {
+            setIsBulkDeleting(false);
+        }
+    };
+
+    const handleBulkSendTemplate = () => {
+        // Enviar plantilla a múltiples contactos
+        // Pasamos null como selectedContact para indicar modo bulk,
+        // pero necesitamos pasar la lista de IDs al modal
+        setSelectedContact(null);
+        setTemplateModalOpen(true);
+    };
+
     return (
-        <div className="p-6 lg:p-8">
+        <div className="p-6 lg:p-8 relative min-h-screen pb-24">
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
                 <div>
@@ -183,10 +243,18 @@ export default function ContactsPage() {
 
             {/* Contacts Table */}
             {!loading && !error && contacts.length > 0 && (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
+                                <th className="px-6 py-3 text-left w-4">
+                                    <button
+                                        onClick={toggleSelectAll}
+                                        className={`p-1 rounded transition-colors ${selectedContacts.size === contacts.length && contacts.length > 0 ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                                    >
+                                        {selectedContacts.size === contacts.length && contacts.length > 0 ? <CheckSquare size={20} /> : <Square size={20} />}
+                                    </button>
+                                </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Contacto
                                 </th>
@@ -210,6 +278,8 @@ export default function ContactsPage() {
                                     key={contact.id}
                                     contact={contact}
                                     onNewMessage={handleNewMessage}
+                                    isSelected={selectedContacts.has(contact.id)}
+                                    onToggleSelect={toggleSelectContact}
                                 />
                             ))}
                         </tbody>
@@ -244,6 +314,39 @@ export default function ContactsPage() {
                 </div>
             )}
 
+            {/* Bulk Actions Bar */}
+            {selectedContacts.size > 0 && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white rounded-full shadow-xl border border-gray-200 px-6 py-3 flex items-center gap-4 animate-in slide-in-from-bottom-5 fade-in duration-300 z-40">
+                    <span className="text-sm font-medium text-gray-700 border-r border-gray-200 pr-4">
+                        {selectedContacts.size} seleccionado{selectedContacts.size !== 1 ? 's' : ''}
+                    </span>
+
+                    <button
+                        onClick={handleBulkDelete}
+                        disabled={isBulkDeleting}
+                        className="flex items-center gap-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                        {isBulkDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                        Eliminar
+                    </button>
+
+                    <button
+                        onClick={handleBulkSendTemplate}
+                        className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                        <Send size={16} />
+                        Enviar Plantilla
+                    </button>
+
+                    <button
+                        onClick={() => setSelectedContacts(new Set())}
+                        className="p-1 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors ml-2"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+            )}
+
             {/* Create Contact Modal */}
             <CreateContactModal
                 isOpen={isModalOpen}
@@ -252,26 +355,54 @@ export default function ContactsPage() {
             />
 
             {/* Send Template Modal */}
-            {/* Nota: Para enviar plantillas desde Contactos, el contacto debe tener una conversación existente */}
-            {selectedContact && (
-                <SendTemplateModal
-                    isOpen={templateModalOpen}
-                    onClose={() => {
-                        setTemplateModalOpen(false);
-                        setSelectedContact(null);
-                    }}
-                    accountId={selectedContact.account}
-                    contactId={selectedContact.id}
-                    conversationId={selectedContact.conversations?.[0]?.id || null}
-                    contactPhone={selectedContact.phone_number}
-                    contactName={selectedContact.name}
-                    onSuccess={() => {
-                        setTemplateModalOpen(false);
-                        setSelectedContact(null);
-                        // Redirigir a inbox sería ideal aquí
-                    }}
-                />
-            )}
+            <SendTemplateModal
+                isOpen={templateModalOpen}
+                onClose={() => {
+                    setTemplateModalOpen(false);
+                    setSelectedContact(null);
+                }}
+                // Props para envío individual
+                accountId={selectedContact?.account || contacts.find(c => selectedContacts.has(c.id))?.account}
+                contactId={selectedContact?.id}
+                conversationId={selectedContact?.conversations?.[0]?.id || null}
+                contactPhone={selectedContact?.phone_number}
+                contactName={selectedContact?.name}
+
+                // Props para envío masivo
+                recipients={selectedContact ? null : Array.from(selectedContacts).map(id => contacts.find(c => c.id === id))}
+
+                onSuccess={(result) => {
+                    setTemplateModalOpen(false);
+                    setSelectedContact(null);
+                    if (selectedContact) {
+                        // Singular success
+                        alert('Plantilla enviada exitosamente.');
+                    } else {
+                        // Bulk success: clear selection
+                        setSelectedContacts(new Set());
+
+                        if (result && (result.success !== undefined || result.failed !== undefined)) {
+                            const successCount = result.success || 0;
+                            const failedCount = result.failed || 0;
+                            const errors = result.errors || [];
+
+                            let message = `Proceso completado.\nEnviados con éxito: ${successCount}`;
+
+                            if (failedCount > 0) {
+                                message += `\nFallidos: ${failedCount}`;
+                                if (errors.length > 0) {
+                                    message += `\n\nErrores:\n${errors.slice(0, 3).join('\n')}`;
+                                    if (errors.length > 3) message += `\n...y ${errors.length - 3} más.`;
+                                }
+                            }
+
+                            alert(message);
+                        } else {
+                            alert('Plantillas enviadas correctamente a la cola de procesamiento.');
+                        }
+                    }
+                }}
+            />
         </div>
     );
 }

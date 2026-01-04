@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Loader2, Send, FileText, AlertCircle, RefreshCw, CheckCircle } from 'lucide-react';
-import { getTemplates, sendTemplateMessage, syncTemplates, createConversation } from '../../services/whatsappService';
+import { getTemplates, sendTemplateMessage, syncTemplates, createConversation, bulkSendTemplate } from '../../services/whatsappService';
 
 /**
  * Modal para enviar mensajes de plantilla de WhatsApp.
@@ -12,6 +12,7 @@ import { getTemplates, sendTemplateMessage, syncTemplates, createConversation } 
  * - conversationId: string - UUID de la conversación (si existe)
  * - contactPhone: string - Número de teléfono del contacto
  * - contactName: string - Nombre del contacto
+ * - recipients: Array - Lista de contactos para envío masivo (opcional)
  * - onSuccess: (message) => void - Callback cuando se envía exitosamente
  */
 export default function SendTemplateModal({
@@ -22,6 +23,7 @@ export default function SendTemplateModal({
     conversationId,
     contactPhone,
     contactName,
+    recipients,
     onSuccess
 }) {
     const [templates, setTemplates] = useState([]);
@@ -186,8 +188,8 @@ export default function SendTemplateModal({
     const handleSend = async () => {
         if (!selectedTemplate) return;
 
-        // Si no hay conversación, necesitamos el ID del contacto y cuenta para crearla
-        if (!conversationId && (!contactId && !accountId)) {
+        // Si no hay conversación y no es envío masivo, necesitamos info de contacto
+        if (!recipients && !conversationId && (!contactId && !accountId)) {
             setError('Falta información del contacto para iniciar la conversación');
             return;
         }
@@ -205,32 +207,12 @@ export default function SendTemplateModal({
         setError(null);
 
         try {
-            let targetConversationId = conversationId;
-
-            // Si no existe ID de conversación, crearla primero
-            if (!targetConversationId) {
-                try {
-                    console.log('Creando nueva conversación...', { contact: contactId, account: accountId });
-                    const newConv = await createConversation({
-                        contact: contactId,
-                        account: accountId
-                    });
-                    targetConversationId = newConv.id;
-                    console.log('Nueva conversación creada:', targetConversationId);
-                } catch (err) {
-                    console.error('Error creating conversation:', err);
-                    throw new Error('No se pudo crear la conversación. Verifica la conexión.');
-                }
-            }
-
             // Construir componentes con parámetros
             const components = [];
             if (variables.length > 0) {
                 components.push({
                     type: 'body',
                     parameters: variables.map(v => {
-                        // Si la key es un número (ej: '1'), es posicional
-                        // Si es texto (ej: 'customer_name'), es nombrado
                         const isPositional = /^\d+$/.test(v.key);
                         const param = {
                             type: 'text',
@@ -246,11 +228,42 @@ export default function SendTemplateModal({
                 });
             }
 
-            const result = await sendTemplateMessage(targetConversationId, {
+            const templateData = {
                 template_name: selectedTemplate.name,
                 template_language: selectedTemplate.language,
                 components
-            });
+            };
+
+            let result;
+
+            // Lógica para ENVÍO MASIVO
+            if (recipients && recipients.length > 0) {
+                result = await bulkSendTemplate(
+                    recipients.map(r => r.id),
+                    templateData
+                );
+            } else {
+                // Lógica de ENVÍO INDIVIDUAL (Original)
+                let targetConversationId = conversationId;
+
+                // Si no existe ID de conversación, crearla primero
+                if (!targetConversationId) {
+                    try {
+                        console.log('Creando nueva conversación...', { contact: contactId, account: accountId });
+                        const newConv = await createConversation({
+                            contact: contactId,
+                            account: accountId
+                        });
+                        targetConversationId = newConv.id;
+                        console.log('Nueva conversación creada:', targetConversationId);
+                    } catch (err) {
+                        console.error('Error creating conversation:', err);
+                        throw new Error('No se pudo crear la conversación. Verifica la conexión.');
+                    }
+                }
+
+                result = await sendTemplateMessage(targetConversationId, templateData);
+            }
 
             onSuccess?.(result);
             onClose();
@@ -266,6 +279,7 @@ export default function SendTemplateModal({
     if (!isOpen) return null;
 
     const variables = selectedTemplate ? extractVariables(selectedTemplate) : [];
+    const isBulk = recipients && recipients.length > 0;
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -275,7 +289,13 @@ export default function SendTemplateModal({
                     <div>
                         <h3 className="text-lg font-semibold text-gray-900">Enviar Plantilla</h3>
                         <p className="text-sm text-gray-500 mt-0.5">
-                            Para: {contactName || contactPhone}
+                            {isBulk ? (
+                                <span className="font-semibold text-blue-600">
+                                    Enviando a {recipients.length} contactos
+                                </span>
+                            ) : (
+                                `Para: ${contactName || contactPhone}`
+                            )}
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -360,7 +380,7 @@ export default function SendTemplateModal({
                                     {variables.length > 0 && (
                                         <div className="space-y-3">
                                             <label className="block text-sm font-medium text-gray-700">
-                                                Variables
+                                                Variables {isBulk && <span className="text-gray-400 font-normal">(se aplicarán a todos los contactos)</span>}
                                             </label>
                                             {variables.map(v => (
                                                 <div key={v.key}>
@@ -403,7 +423,7 @@ export default function SendTemplateModal({
                     </button>
                     <button
                         onClick={handleSend}
-                        disabled={sending || !selectedTemplate || (!conversationId && (!contactId || !accountId))}
+                        disabled={sending || !selectedTemplate || (!conversationId && (!contactId || !accountId) && !isBulk)}
                         className="flex-1 px-4 py-2.5 text-white bg-blue-500 rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
                     >
                         {sending ? (
