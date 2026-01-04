@@ -1,7 +1,8 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { MessageSquare, Users, Settings, Menu, X } from 'lucide-react';
+import { MessageSquare, Users, Settings, Menu, X, LogOut } from 'lucide-react';
 import { useState } from 'react';
 import { useUnreadCount } from '../contexts/UnreadContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const navItems = [
     { to: '/inbox', icon: MessageSquare, label: 'Inbox' },
@@ -12,6 +13,11 @@ const navItems = [
 export default function DashboardLayout() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const { totalUnread } = useUnreadCount();
+    const { user, logout } = useAuth();
+
+    const handleLogout = () => {
+        logout();
+    };
 
     return (
         <div className="flex h-screen bg-gray-50">
@@ -71,12 +77,35 @@ export default function DashboardLayout() {
                     </ul>
                 </nav>
 
-                {/* Footer */}
-                {sidebarOpen && (
-                    <div className="p-4 border-t border-gray-100">
-                        <p className="text-xs text-gray-400">Open-WA CRM v1.0</p>
-                    </div>
-                )}
+                {/* Footer with user info and logout */}
+                <div className="p-4 border-t border-gray-100">
+                    {sidebarOpen ? (
+                        <div className="space-y-3">
+                            {user && (
+                                <div className="text-sm text-gray-600">
+                                    <p className="font-medium text-gray-800">{user.username}</p>
+                                    <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                                </div>
+                            )}
+                            <button
+                                onClick={handleLogout}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                                <LogOut size={18} />
+                                <span>Cerrar Sesión</span>
+                            </button>
+                            <p className="text-xs text-gray-400">Open-WA CRM v1.0</p>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={handleLogout}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Cerrar Sesión"
+                        >
+                            <LogOut size={20} />
+                        </button>
+                    )}
+                </div>
             </aside>
 
             {/* Main Content */}
@@ -86,3 +115,4 @@ export default function DashboardLayout() {
         </div>
     );
 }
+

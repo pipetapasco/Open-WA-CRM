@@ -38,10 +38,13 @@ class ConversationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        Retorna conversaciones con conteo de mensajes no leídos.
+        Retorna conversaciones del usuario actual con conteo de mensajes no leídos.
         Mensajes entrantes que no han sido leídos.
         """
-        return Conversation.objects.select_related(
+        user_accounts = self.request.user.whatsapp_accounts.all()
+        return Conversation.objects.filter(
+            account__in=user_accounts
+        ).select_related(
             'contact', 'account'
         ).annotate(
             unread_count=Count(
@@ -119,10 +122,13 @@ class MessageViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        Retorna mensajes ordenados por fecha (más recientes primero para scroll).
+        Retorna mensajes del usuario actual ordenados por fecha.
         Opcionalmente filtrados por conversación.
         """
-        queryset = Message.objects.select_related('conversation', 'conversation__contact')
+        user_accounts = self.request.user.whatsapp_accounts.all()
+        queryset = Message.objects.filter(
+            conversation__account__in=user_accounts
+        ).select_related('conversation', 'conversation__contact')
         
         conversation_id = self.request.query_params.get('conversation')
         if conversation_id:

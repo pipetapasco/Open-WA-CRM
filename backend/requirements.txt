@@ -15,3 +15,5 @@ cryptography
 django-filter
 channels[daphne]
 channels_redis
+djangorestframework-simplejwt
+whitenoise

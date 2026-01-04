@@ -1,6 +1,9 @@
 from django.db import models
+from django.contrib.auth import get_user_model
 from apps.common.models import TimeStampedModel
 from apps.common.fields import EncryptedTextField
+
+User = get_user_model()
 
 
 class WhatsAppAccount(TimeStampedModel):
@@ -13,6 +16,14 @@ class WhatsAppAccount(TimeStampedModel):
         ACTIVE = 'active', 'Active'
         DISCONNECTED = 'disconnected', 'Disconnected'
     
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='whatsapp_accounts',
+        help_text='Usuario propietario de esta cuenta',
+        null=True,  # Temporarily nullable for migration
+        blank=True,
+    )
     name = models.CharField(
         max_length=100,
         help_text='Nombre interno de la cuenta'

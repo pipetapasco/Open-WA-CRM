@@ -31,10 +31,14 @@ class ContactViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        Retorna contactos ordenados por creación reciente,
+        Retorna contactos del usuario actual,
+        ordenados por creación reciente,
         anotados con el conteo de conversaciones.
         """
-        return Contact.objects.select_related('account').annotate(
+        user_accounts = self.request.user.whatsapp_accounts.all()
+        return Contact.objects.filter(
+            account__in=user_accounts
+        ).select_related('account').annotate(
             conversations_count=Count('conversations')
         ).order_by('-created_at')
 
@@ -62,145 +66,80 @@ class ContactViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def bulk_send_template(self, request):
         """
-        Envía una plantilla a múltiples contactos.
-        POST /contacts/bulk_send_template/
-        Body: { 
-            "ids": ["uuid1", "uuid2"],
-            "template_data": { ... } 
-        }
-        """
-        contact_ids = request.data.get('ids', [])
-        template_data = request.data.get('template_data', {})
+        Envía una plantilla de WhatsApp a múltiples contactos.
         
+        Esta vista actúa como "Thin View", delegando toda la lógica
+        de negocio al WhatsAppNotificationService.
+        
+        POST /contacts/bulk_send_template/
+        Body: {
+            "ids": ["uuid1", "uuid2", ...],
+            "template_data": {
+                "template_name": "hello_world",
+                "template_language": "es",
+                "components": [...]  // opcional
+            }
+        }
+        
+        Returns:
+            Response con el resumen de envíos:
+            {
+                "success": int,
+                "failed": int,
+                "errors": [str, ...]
+            }
+        """
+        from apps.chat.serializers import SendTemplateMessageSerializer
+        from apps.chat.services import (
+            WhatsAppNotificationService,
+            TemplateData,
+        )
+        
+        # 1. Extraer datos de la solicitud
+        contact_ids: list[str] = request.data.get('ids', [])
+        template_data_raw: dict = request.data.get('template_data', {})
+        
+        # 2. Validar que se proporcionaron IDs
         if not contact_ids:
             return Response(
                 {'error': 'No se proporcionaron IDs de contactos.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-            
-        from apps.chat.models import Conversation
-        from apps.chat.serializers import SendTemplateMessageSerializer
-        from apps.chat.views import MessageViewSet
         
-        # Validar datos de plantilla usando el serializer existente
-        serializer = SendTemplateMessageSerializer(data=template_data)
+        # 3. Validar datos de plantilla con el serializer existente
+        serializer = SendTemplateMessageSerializer(data=template_data_raw)
         serializer.is_valid(raise_exception=True)
         
-        valid_data = serializer.validated_data
+        # 4. Construir DTO de plantilla desde datos validados
+        template_data = TemplateData.from_validated_data(serializer.validated_data)
         
-        # Filtrar contactos válidos (que pertenezcan a cuentas del usuario si aplica)
-        contacts = Contact.objects.filter(id__in=contact_ids)
+        # 5. Obtener contactos (sin filtrar por cuenta del usuario para bulk ops)
+        contacts = Contact.objects.select_related('account').filter(
+            id__in=contact_ids
+        )
         
-        results = {
+        # 6. Inicializar servicio y contadores de resultados
+        service = WhatsAppNotificationService()
+        results: dict[str, int | list[str]] = {
             'success': 0,
             'failed': 0,
             'errors': []
         }
         
+        # 7. Iterar sobre contactos y delegar al servicio
         for contact in contacts:
-            try:
-                # Obtener o crear conversación
-                conversation, _ = Conversation.objects.get_or_create(
-                    contact=contact,
-                    account=contact.account
-                )
-                
-                # Crear el mensaje localmente (reutilizando lógica similar a MessageViewSet)
-                from apps.chat.models import Message
-                from django.utils import timezone
-                import uuid
-                
-                # Intentar renderizar el contenido completo de la plantilla
-                rendered_body = f"[Template: {valid_data['template_name']}]"
-                
-                try:
-                    # 1. Buscar la plantilla localmente
-                    from apps.config_api.models import WhatsAppTemplate
-                    template = WhatsAppTemplate.objects.filter(
-                        account=contact.account,
-                        name=valid_data['template_name'],
-                        language=valid_data['template_language'],
-                        status='APPROVED'
-                    ).first()
-                    
-                    if template:
-                        # 2. Extraer el componente BODY
-                        body_component = next((c for c in template.components if c.get('type') == 'BODY'), None)
-                        if body_component and body_component.get('text'):
-                            text = body_component['text']
-                            
-                            # 3. Extraer parámetros enviados
-                            # Los components enviados por el front vienen así: 
-                            # [{'type': 'body', 'parameters': [...]}]
-                            components = valid_data.get('components', [])
-                            sent_body = next((c for c in components if c.get('type') == 'body'), None)
-                            
-                            if sent_body and sent_body.get('parameters'):
-                                params = sent_body['parameters']
-                                
-                                # Mapa de valores posicionales y nombrados
-                                positional_values = []
-                                named_values = {}
-                                
-                                for p in params:
-                                    if p.get('type') == 'text':
-                                        val = p.get('text', '')
-                                        # Si tiene parameter_name es nombrado
-                                        if p.get('parameter_name'):
-                                            named_values[p['parameter_name']] = val
-                                        else:
-                                            positional_values.append(val)
-                                
-                                # 4. Reemplazar variables nombradas {{nombre}}
-                                for key, val in named_values.items():
-                                    text = text.replace(f"{{{{{key}}}}}", val)
-                                    
-                                # 5. Reemplazar variables posicionales {{1}}, {{2}}
-                                for i, val in enumerate(positional_values):
-                                    text = text.replace(f"{{{{{i+1}}}}}", val)
-                                    
-                            rendered_body = text
-                except Exception as e:
-                    print(f"Error rendering bulk template body: {e}")
-
-                # Crear mensaje
-                # Generamos un ID temporal para evitar error de unicidad con string vacío
-                # El task lo actualizará con el ID real de WhatsApp
-                temp_id = f"temp-{uuid.uuid4()}"
-                
-                message = Message.objects.create(
-                    conversation=conversation,
-                    direction='outgoing',
-                    message_type='template',
-                    body=rendered_body,
-                    # Guardamos metadata para referencia
-                    metadata={
-                        'template_name': valid_data['template_name'],
-                        'template_language': valid_data['template_language'],
-                        'components': valid_data.get('components', []),
-                    },
-                    delivery_status='sent',
-                    whatsapp_id=temp_id
-                )
-                
-                conversation.last_message_at = timezone.now()
-                conversation.save(update_fields=['last_message_at'])
-                
-                # Enviar tarea asíncrona
-                from apps.chat.tasks import send_whatsapp_template
-                send_whatsapp_template.delay(
-                    str(message.id),
-                    valid_data['template_name'],
-                    valid_data['template_language'],
-                    valid_data.get('components', [])
-                )
-                
+            result = service.send_template_to_contact(
+                contact=contact,
+                account=contact.account,
+                template_data=template_data
+            )
+            
+            if result.success:
                 results['success'] += 1
-                
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
+            else:
                 results['failed'] += 1
-                results['errors'].append(f"Error con contacto {contact.id}: {str(e)}")
+                results['errors'].append(
+                    f"Error con contacto {contact.id}: {result.error}"
+                )
         
         return Response(results)

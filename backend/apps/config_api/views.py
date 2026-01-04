@@ -24,8 +24,15 @@ class WhatsAppAccountViewSet(viewsets.ModelViewSet):
     - DELETE /accounts/{id}/ - Eliminar
     - GET /accounts/{id}/sync_templates/ - Sincronizar plantillas
     """
-    queryset = WhatsAppAccount.objects.all()
     serializer_class = WhatsAppAccountSerializer
+    
+    def get_queryset(self):
+        """Filtrar cuentas por usuario propietario."""
+        return WhatsAppAccount.objects.filter(owner=self.request.user)
+    
+    def perform_create(self, serializer):
+        """Asignar usuario actual como propietario al crear."""
+        serializer.save(owner=self.request.user)
     
     @action(detail=True, methods=['post'])
     def sync_templates(self, request, pk=None):
@@ -111,9 +118,15 @@ class WhatsAppTemplateViewSet(viewsets.ModelViewSet):
     """
     ViewSet para gestionar plantillas de WhatsApp.
     """
-    queryset = WhatsAppTemplate.objects.select_related('account').all()
     serializer_class = WhatsAppTemplateSerializer
     filterset_fields = ['account', 'category', 'status', 'language']
+    
+    def get_queryset(self):
+        """Filtrar plantillas por cuentas del usuario."""
+        user_accounts = self.request.user.whatsapp_accounts.all()
+        return WhatsAppTemplate.objects.filter(
+            account__in=user_accounts
+        ).select_related('account')
 
 
 @api_view(['GET', 'POST'])
