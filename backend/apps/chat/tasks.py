@@ -43,6 +43,29 @@ def send_whatsapp_message(self, message_id: str):
             if message.media_url:
                 # Subir archivo a Meta para obtener ID
                 try:
+                    # Fix: Convertir formatos no soportados (ej: webm -> ogg)
+                    if message.message_type == 'audio':
+                        from apps.common.utils import convert_media_for_whatsapp
+                        converted_path = convert_media_for_whatsapp(message.media_url)
+                        
+                        # Si cambió el path, actualizar DB para futuras referencias y para que el upload use el nuevo
+                        if converted_path != message.media_url:
+                            logger.info(f"Updated media url after conversion: {message.media_url} -> {converted_path}")
+                            message.media_url = converted_path
+                            message.media_url = converted_path
+                            message.save(update_fields=['media_url'])
+                    
+                    # New: Calculate duration for audio messages
+                    if message.message_type == 'audio':
+                         from apps.common.utils import get_media_duration
+                         duration = get_media_duration(message.media_url)
+                         if duration > 0:
+                             logger.info(f"Audio duration: {duration}s")
+                             if not message.metadata:
+                                 message.metadata = {}
+                             message.metadata['duration'] = duration
+                             message.save(update_fields=['metadata'])
+                    
                     media_id = upload_media_to_meta(message.media_url, account)
                 except Exception as e:
                     logger.error(f"Failed to upload media to Meta: {e}")
@@ -130,9 +153,17 @@ def upload_media_to_meta(media_path: str, account) -> str:
         raise FileNotFoundError(f"Media file not found: {file_path}")
         
     # 2. Obtener MIME type y tamaño
+    mimetypes.init()
     mime_type, _ = mimetypes.guess_type(file_path)
+    
+    # Fallback específico para ogg/opus que a veces falla en contenedores mínimos
     if not mime_type:
-        mime_type = 'application/octet-stream'
+        if file_path.endswith('.ogg'):
+            mime_type = 'audio/ogg'
+        elif file_path.endswith('.opus'):
+            mime_type = 'audio/ogg' # WhatsApp usa este mimetype a menudo
+        else:
+            mime_type = 'application/octet-stream'
     
     file_size = os.path.getsize(file_path)
     

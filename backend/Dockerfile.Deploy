@@ -24,6 +24,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     libpq5 \
     curl \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 RUN adduser --disabled-password --gecos '' --uid 1000 appuser
