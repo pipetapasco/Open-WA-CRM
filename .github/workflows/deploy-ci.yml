@@ -120,6 +120,7 @@ jobs:
           DATABASE_URL: postgres://test_user:test_password@localhost:5432/test_db
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: test-secret-key-for-ci-pipeline
+          ENCRYPTION_KEY: "tf_32L4-X2S7m_2j5q8w9R1n0P4l7k2J5h8g3f6d9s0="
           DEBUG: "False"
           ALLOWED_HOSTS: "*"
         run: |
@@ -211,6 +212,7 @@ jobs:
             -e DATABASE_URL=sqlite://:memory: \
             -e REDIS_URL=redis://dummy \
             -e SECRET_KEY=test-key \
+            -e ENCRYPTION_KEY=tf_32L4-X2S7m_2j5q8w9R1n0P4l7k2J5h8g3f6d9s0= \
             -e DEBUG=False \
             -e ALLOWED_HOSTS=* \
             ${{ env.DOCKER_IMAGE }}:latest
