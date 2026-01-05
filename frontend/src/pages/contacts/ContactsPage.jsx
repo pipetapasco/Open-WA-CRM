@@ -99,6 +99,72 @@ function LoadingSkeleton() {
     );
 }
 
+function ContactCard({ contact, onNewMessage, isSelected, onToggleSelect }) {
+    return (
+        <div className={`bg-white rounded-xl border border-gray-200 p-4 ${isSelected ? 'ring-2 ring-blue-500 bg-blue-50/30' : ''}`}>
+            <div className="flex items-start gap-3">
+                <button
+                    onClick={() => onToggleSelect(contact.id)}
+                    className={`mt-1 p-1 rounded transition-colors ${isSelected ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                >
+                    {isSelected ? <CheckSquare size={20} /> : <Square size={20} />}
+                </button>
+
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-medium flex-shrink-0">
+                            {contact.profile_picture_url ? (
+                                <img
+                                    src={contact.profile_picture_url}
+                                    alt={contact.name}
+                                    className="w-12 h-12 rounded-full object-cover"
+                                />
+                            ) : (
+                                <span className="text-lg">{contact.name?.charAt(0)?.toUpperCase() || '?'}</span>
+                            )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-gray-900 truncate">{contact.name || 'Sin nombre'}</p>
+                            <p className="text-sm text-gray-500 flex items-center gap-1">
+                                <Phone size={12} />
+                                {contact.phone_number}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                        <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                            <Building2 size={14} className="text-gray-400" />
+                            <span className="truncate">{contact.account_name || 'Cuenta'}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                            <MessageSquare size={14} className="text-blue-500" />
+                            <span>{contact.conversations_count || 0} chats</span>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                        <span className="text-xs text-gray-500">
+                            {new Date(contact.created_at).toLocaleDateString('es-ES', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric'
+                            })}
+                        </span>
+                        <button
+                            onClick={() => onNewMessage(contact)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+                        >
+                            <Send size={14} />
+                            Mensaje
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function ContactsPage() {
     const [contacts, setContacts] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -239,9 +305,9 @@ export default function ContactsPage() {
             {/* Loading State */}
             {loading && <LoadingSkeleton />}
 
-            {/* Contacts Table */}
+            {/* Contacts Table - Desktop */}
             {!loading && !error && contacts.length > 0 && (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8">
+                <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
@@ -282,6 +348,30 @@ export default function ContactsPage() {
                             ))}
                         </tbody>
                     </table>
+                </div>
+            )}
+
+            {/* Contacts Cards - Mobile */}
+            {!loading && !error && contacts.length > 0 && (
+                <div className="md:hidden space-y-3 mb-8">
+                    <div className="flex items-center justify-between px-2 py-2 bg-gray-50 rounded-lg">
+                        <button
+                            onClick={toggleSelectAll}
+                            className={`flex items-center gap-2 text-sm font-medium ${selectedContacts.size === contacts.length && contacts.length > 0 ? 'text-blue-600' : 'text-gray-600'}`}
+                        >
+                            {selectedContacts.size === contacts.length && contacts.length > 0 ? <CheckSquare size={18} /> : <Square size={18} />}
+                            Seleccionar todos
+                        </button>
+                    </div>
+                    {contacts.map((contact) => (
+                        <ContactCard
+                            key={contact.id}
+                            contact={contact}
+                            onNewMessage={handleNewMessage}
+                            isSelected={selectedContacts.has(contact.id)}
+                            onToggleSelect={toggleSelectContact}
+                        />
+                    ))}
                 </div>
             )}
 

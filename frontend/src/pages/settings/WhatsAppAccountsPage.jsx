@@ -126,22 +126,22 @@ function AccountCard({ account, aiConfig, onDelete, onEdit, onConfigureAI }) {
             </div>
 
             {/* Card Footer */}
-            <div className="px-4 py-3 bg-gray-50 rounded-b-xl border-t border-gray-100 flex gap-2">
+            <div className="px-4 py-3 bg-gray-50 rounded-b-xl border-t border-gray-100 flex flex-wrap gap-2">
                 {!aiConfig && (
                     <button
                         onClick={() => onConfigureAI(account)}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 hover:border-purple-300 transition-colors"
+                        className="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 hover:border-purple-300 transition-colors"
                     >
                         <Sparkles size={16} />
-                        Configurar IA
+                        <span className="whitespace-nowrap">Configurar IA</span>
                     </button>
                 )}
                 <button
                     onClick={() => onEdit?.(account)}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                    className="flex-1 min-w-[100px] flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors"
                 >
                     <Settings size={16} />
-                    Gestionar
+                    <span className="whitespace-nowrap">Gestionar</span>
                 </button>
                 <button
                     onClick={handleDelete}
