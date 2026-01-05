@@ -188,7 +188,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            'hosts': [(os.getenv('REDIS_HOST', 'redis'), 6379)],
+            'hosts': [os.getenv('REDIS_URL') or os.getenv('CELERY_BROKER_URL')],
         },
     },
 }
