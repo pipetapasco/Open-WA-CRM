@@ -1,0 +1,111 @@
+version: '3.8'
+
+x-common-env: &common-env
+  DATABASE_URL: ${DATABASE_URL}
+  REDIS_URL: ${REDIS_URL}
+  SECRET_KEY: ${SECRET_KEY}
+  DEBUG: ${DEBUG:-False}
+  ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+  CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS}
+  WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
+  WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+  WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+
+x-common-config: &common-config
+  image: ${DOCKER_IMAGE:-pipetapasco/open-wa-crm-backend}:${IMAGE_TAG:-latest}
+  restart: unless-stopped
+  networks:
+    - app-network
+
+services:
+  backend:
+    <<: *common-config
+    container_name: open-wa-crm-backend
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      <<: *common-env
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/" ]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.80'
+          memory: 400M
+        reservations:
+          memory: 150M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  celery_worker:
+    <<: *common-config
+    container_name: open-wa-crm-celery-worker
+    command: celery -A config worker --loglevel=info --concurrency=2 -Q celery,whatsapp,messages
+    environment:
+      <<: *common-env
+    volumes:
+      - media_data:/app/media
+    healthcheck:
+      test: [ "CMD", "celery", "-A", "config", "inspect", "ping", "-d", "celery@$$HOSTNAME" ]
+      interval: 60s
+      timeout: 30s
+      start_period: 30s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 350M
+        reservations:
+          memory: 150M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  celery_beat:
+    <<: *common-config
+    container_name: open-wa-crm-celery-beat
+    command: celery -A config beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    environment:
+      <<: *common-env
+    healthcheck:
+      test: [ "CMD", "pgrep", "-f", "celery beat" ]
+      interval: 60s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.20'
+          memory: 200M
+        reservations:
+          memory: 100M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  media_data:
+    driver: local
+  static_data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge
