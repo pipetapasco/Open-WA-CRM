@@ -27,7 +27,8 @@ import {
     Paperclip,
     Mic,
     StopCircle,
-    Sparkles
+    Sparkles,
+    ChevronLeft
 } from 'lucide-react';
 import useChatWebSocket from '../../hooks/useChatWebSocket';
 import { useUnreadCount } from '../../contexts/UnreadContext';
@@ -480,7 +481,9 @@ function ChatWindow({
     onUpdateContactName,
     onSendTemplate,
     onTemplateSuccess,
-    onMediaSent
+    onMediaSent,
+    onBack,
+    isMobile
 }) {
     const [inputText, setInputText] = useState('');
     const [showMenu, setShowMenu] = useState(false);
@@ -689,9 +692,18 @@ function ChatWindow({
     return (
         <div className="flex flex-col h-full w-full bg-gray-50">
             {/* Chat Header */}
-            <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 bg-white border-b border-gray-200">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    {isMobile && onBack && (
+                        <button
+                            onClick={onBack}
+                            className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
+                            aria-label="Volver"
+                        >
+                            <ChevronLeft size={24} className="text-gray-600" />
+                        </button>
+                    )}
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold flex-shrink-0">
                         {chat.contact?.profile_picture_url ? (
                             <img
                                 src={chat.contact.profile_picture_url}
@@ -702,13 +714,13 @@ function ChatWindow({
                             <span>{chat.contact?.name?.charAt(0)?.toUpperCase() || '?'}</span>
                         )}
                     </div>
-                    <div>
-                        <h3 className="font-semibold text-gray-900">
+                    <div className="min-w-0">
+                        <h3 className="font-semibold text-gray-900 truncate">
                             {chat.contact?.name || 'Contacto'}
                         </h3>
                         <p className="text-sm text-gray-500 flex items-center gap-1">
                             <Phone size={12} />
-                            {chat.contact?.phone_number}
+                            <span className="truncate">{chat.contact?.phone_number}</span>
                         </p>
                     </div>
                 </div>
@@ -1340,7 +1352,7 @@ export default function InboxPage() {
 
             {/* Mobile Chat Window (overlay) */}
             {selectedChat && (
-                <div className="fixed inset-0 z-50 md:hidden">
+                <div className="fixed inset-0 z-50 md:hidden bg-white">
                     <ChatWindow
                         chat={selectedChat}
                         messages={messages}
@@ -1353,13 +1365,9 @@ export default function InboxPage() {
                             handleSendMessage(newMessage, true);
                         }}
                         onMediaSent={(msg) => handleSendMessage(msg, true)}
+                        onBack={() => setSelectedChat(null)}
+                        isMobile={true}
                     />
-                    <button
-                        onClick={() => setSelectedChat(null)}
-                        className="absolute top-4 left-4 p-2 bg-white rounded-full shadow-lg"
-                    >
-                        ← Volver
-                    </button>
                 </div>
             )}
         </div>
