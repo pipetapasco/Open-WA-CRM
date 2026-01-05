@@ -65,7 +65,7 @@ const getMediaUrl = (url) => {
     if (!url) return '';
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
 
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
     try {
         const urlObj = new URL(apiUrl);
