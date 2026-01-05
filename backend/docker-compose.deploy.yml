@@ -14,6 +14,7 @@ x-common-env: &common-env
   CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
   ENCRYPTION_KEY: ${ENCRYPTION_KEY}
   CELERY_BROKER_URL: ${REDIS_URL}
+  REDIS_HOST: ${REDIS_HOST}
 
 x-common-config: &common-config
   image: ${DOCKER_IMAGE:-pipetapasco/open-wa-crm-backend}:${IMAGE_TAG:-latest}
