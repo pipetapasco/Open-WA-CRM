@@ -1212,9 +1212,6 @@ export default function InboxPage() {
                 newMessage = await sendMessage(selectedChat.id, textOrMessage);
             }
 
-            setMessages((prev) => [...prev, newMessage]);
-
-            // Actualizar conversación
             setConversations((prev) => {
                 const index = prev.findIndex((c) => c.id === selectedChat.id);
                 if (index === -1) return prev;
