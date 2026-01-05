@@ -1,0 +1,19 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="blueGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#3399FF;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#0057FF;stop-opacity:1" />
+        </linearGradient>
+    </defs>
+    
+    <g id="OpenWaIcon">
+        <path d="M448 128C448 92.65 419.35 64 384 64H128C92.65 64 64 92.65 64 128V384C64 396.4 56.8 407.5 45.5 413.2C34.2 418.8 20.8 418.1 10 411.3C15.8 426.2 30.4 448 64 448H384C419.35 448 448 419.35 448 384V128Z" 
+              fill="url(#blueGradient)"/>
+              
+        <g id="AISparkles" fill="#FFFFFF">
+            <path d="M256 160C256 160 272 208 320 224C272 240 256 288 256 288C256 288 240 240 192 224C240 208 256 160 256 160Z"/>
+            <path d="M176 128C176 128 184 152 208 160C184 168 176 192 176 192C176 192 168 168 144 160C168 152 176 128 176 128Z"/>
+            <path d="M336 272C336 272 346 302 376 312C346 322 336 352 336 352C336 352 326 322 296 312C326 302 336 272 336 272Z"/>
+        </g>
+    </g>
+</svg>

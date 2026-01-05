@@ -31,7 +31,7 @@ services:
     environment:
       <<: *common-env
     volumes:
-      - media_data:/app/media
+      - ./media:/app/media
       - static_data:/app/staticfiles
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/" ]
@@ -59,7 +59,7 @@ services:
     environment:
       <<: *common-env
     volumes:
-      - media_data:/app/media
+      - ./media:/app/media
     healthcheck:
       test: [ "CMD", "celery", "-A", "config", "inspect", "ping", "-d", "celery@$$HOSTNAME" ]
       interval: 60s
@@ -105,8 +105,6 @@ services:
         max-file: "3"
 
 volumes:
-  media_data:
-    driver: local
   static_data:
     driver: local
 
